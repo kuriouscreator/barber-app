@@ -1,14 +1,31 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AppProvider } from './src/context/AppContext';
+import { AppProvider, useApp } from './src/context/AppContext';
+import { mockServices, mockSubscriptions } from './src/data/mockData';
 import AppNavigator from './src/navigation/AppNavigator';
+
+const AppContent: React.FC = () => {
+  const { dispatch } = useApp();
+
+  useEffect(() => {
+    // Initialize mock data
+    dispatch({ type: 'SET_SERVICES', payload: mockServices });
+    dispatch({ type: 'SET_SUBSCRIPTIONS', payload: mockSubscriptions });
+  }, [dispatch]);
+
+  return (
+    <>
+      <AppNavigator />
+      <StatusBar style="dark" />
+    </>
+  );
+};
 
 export default function App() {
   return (
     <AppProvider>
-      <AppNavigator />
-      <StatusBar style="dark" />
+      <AppContent />
     </AppProvider>
   );
 }

@@ -9,13 +9,19 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
+import { Service } from '../types';
+import ServiceEditModal from '../components/ServiceEditModal';
+import ServiceAddModal from '../components/ServiceAddModal';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 
 const AdminScreen: React.FC = () => {
-  const { state, approveCheckIn, rejectCheckIn } = useApp();
+  const { state, approveCheckIn, rejectCheckIn, addService, updateService, deleteService } = useApp();
   const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'services'>('checkins');
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   const pendingCheckIns = state.appointments.filter(apt => apt.checkInStatus === 'arrived');
   const todayAppointments = state.appointments.filter(apt => {
@@ -47,6 +53,45 @@ const AdminScreen: React.FC = () => {
 
   const formatTime = (timeString: string) => {
     return timeString;
+  };
+
+  const handleEditService = (service: Service) => {
+    setSelectedService(service);
+    setEditModalVisible(true);
+  };
+
+  const handleAddService = () => {
+    setAddModalVisible(true);
+  };
+
+  const handleSaveService = (service: Service) => {
+    updateService(service);
+    setEditModalVisible(false);
+    setSelectedService(null);
+  };
+
+  const handleAddNewService = (serviceData: Omit<Service, 'id'>) => {
+    const newService: Service = {
+      ...serviceData,
+      id: Date.now().toString(), // Simple ID generation
+    };
+    addService(newService);
+    setAddModalVisible(false);
+  };
+
+  const handleDeleteService = (serviceId: string) => {
+    deleteService(serviceId);
+    setEditModalVisible(false);
+    setSelectedService(null);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditModalVisible(false);
+    setSelectedService(null);
+  };
+
+  const handleCloseAddModal = () => {
+    setAddModalVisible(false);
   };
 
   const renderCheckInCard = (appointment: any) => (
@@ -184,7 +229,7 @@ const AdminScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>Service Management</Text>
             <View style={styles.subscriptionStats}>
               <View style={styles.statCard}>
-                <Text style={styles.statNumber}>4</Text>
+                <Text style={styles.statNumber}>{state.services.length}</Text>
                 <Text style={styles.statLabel}>Active Services</Text>
               </View>
               <View style={styles.statCard}>
@@ -198,36 +243,57 @@ const AdminScreen: React.FC = () => {
             <View style={styles.managementCard}>
               <Text style={styles.managementTitle}>Available Services</Text>
               <View style={styles.serviceList}>
-                <View style={styles.serviceItem}>
-                  <Text style={styles.serviceItemName}>Classic Haircut</Text>
-                  <Text style={styles.serviceDetails}>30 min • $25</Text>
-                </View>
-                <View style={styles.serviceItem}>
-                  <Text style={styles.serviceItemName}>Beard Trim</Text>
-                  <Text style={styles.serviceDetails}>20 min • $15</Text>
-                </View>
-                <View style={styles.serviceItem}>
-                  <Text style={styles.serviceItemName}>Haircut + Beard</Text>
-                  <Text style={styles.serviceDetails}>45 min • $35</Text>
-                </View>
-                <View style={styles.serviceItem}>
-                  <Text style={styles.serviceItemName}>Styling</Text>
-                  <Text style={styles.serviceDetails}>15 min • $10</Text>
-                </View>
+                {state.services.map((service) => (
+                  <TouchableOpacity
+                    key={service.id}
+                    style={styles.serviceItem}
+                    onPress={() => handleEditService(service)}
+                  >
+                    <View style={styles.serviceItemContent}>
+                      <Text style={styles.serviceItemName}>{service.name}</Text>
+                      <Text style={styles.serviceDetails}>
+                        {service.duration} min • ${service.price}
+                      </Text>
+                      <Text style={styles.serviceDescription}>{service.description}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
+                  </TouchableOpacity>
+                ))}
+                {state.services.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="cut-outline" size={48} color={colors.gray[300]} />
+                    <Text style={styles.emptyStateText}>No services added yet</Text>
+                    <Text style={styles.emptyStateSubtext}>Add your first service to get started</Text>
+                  </View>
+                )}
               </View>
               
-              <TouchableOpacity style={styles.managementButton}>
+              <TouchableOpacity 
+                style={styles.managementButton}
+                onPress={handleAddService}
+              >
                 <Ionicons name="add-circle-outline" size={24} color={colors.accent.primary} />
                 <Text style={styles.managementButtonText}>Add New Service</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.managementButton}>
-                <Ionicons name="settings-outline" size={24} color={colors.accent.primary} />
-                <Text style={styles.managementButtonText}>Edit Services</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
       </ScrollView>
+
+      {/* Service Management Modals */}
+      <ServiceEditModal
+        visible={editModalVisible}
+        service={selectedService}
+        onClose={handleCloseEditModal}
+        onSave={handleSaveService}
+        onDelete={handleDeleteService}
+      />
+      
+      <ServiceAddModal
+        visible={addModalVisible}
+        onClose={handleCloseAddModal}
+        onSave={handleAddNewService}
+      />
     </View>
   );
 };
@@ -465,14 +531,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.light,
     borderBottomWidth: 1,
   },
+  serviceItemContent: {
+    flex: 1,
+  },
   serviceItemName: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   serviceDetails: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  serviceDescription: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray[500],
+    fontStyle: 'italic',
   },
 });
 

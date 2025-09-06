@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { User, Subscription, Appointment } from '../types';
+import { User, Subscription, Appointment, Service } from '../types';
 
 interface AppState {
   user: User | null;
   appointments: Appointment[];
   subscriptions: Subscription[];
+  services: Service[];
   isLoading: boolean;
 }
 
@@ -14,6 +15,10 @@ type AppAction =
   | { type: 'ADD_APPOINTMENT'; payload: Appointment }
   | { type: 'UPDATE_APPOINTMENT'; payload: Appointment }
   | { type: 'SET_SUBSCRIPTIONS'; payload: Subscription[] }
+  | { type: 'SET_SERVICES'; payload: Service[] }
+  | { type: 'ADD_SERVICE'; payload: Service }
+  | { type: 'UPDATE_SERVICE'; payload: Service }
+  | { type: 'DELETE_SERVICE'; payload: string }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'UPDATE_CREDITS'; payload: number };
 
@@ -21,6 +26,7 @@ const initialState: AppState = {
   user: null,
   appointments: [],
   subscriptions: [],
+  services: [],
   isLoading: false,
 };
 
@@ -41,6 +47,22 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       };
     case 'SET_SUBSCRIPTIONS':
       return { ...state, subscriptions: action.payload };
+    case 'SET_SERVICES':
+      return { ...state, services: action.payload };
+    case 'ADD_SERVICE':
+      return { ...state, services: [...state.services, action.payload] };
+    case 'UPDATE_SERVICE':
+      return {
+        ...state,
+        services: state.services.map(service =>
+          service.id === action.payload.id ? action.payload : service
+        ),
+      };
+    case 'DELETE_SERVICE':
+      return {
+        ...state,
+        services: state.services.filter(service => service.id !== action.payload),
+      };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'UPDATE_CREDITS':
@@ -63,6 +85,9 @@ interface AppContextType {
   checkIn: (appointmentId: string) => void;
   approveCheckIn: (appointmentId: string) => void;
   rejectCheckIn: (appointmentId: string) => void;
+  addService: (service: Service) => void;
+  updateService: (service: Service) => void;
+  deleteService: (serviceId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -112,6 +137,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const addService = (service: Service) => {
+    dispatch({ type: 'ADD_SERVICE', payload: service });
+  };
+
+  const updateService = (service: Service) => {
+    dispatch({ type: 'UPDATE_SERVICE', payload: service });
+  };
+
+  const deleteService = (serviceId: string) => {
+    dispatch({ type: 'DELETE_SERVICE', payload: serviceId });
+  };
+
   const value: AppContextType = {
     state,
     dispatch,
@@ -122,6 +159,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     checkIn,
     approveCheckIn,
     rejectCheckIn,
+    addService,
+    updateService,
+    deleteService,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
