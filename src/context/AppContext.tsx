@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { User, Subscription, Appointment, Service } from '../types';
+import { User, Subscription, Appointment, Service, Barber, Availability } from '../types';
 
 interface AppState {
   user: User | null;
   appointments: Appointment[];
   subscriptions: Subscription[];
   services: Service[];
+  barber: Barber | null;
   isLoading: boolean;
 }
 
@@ -19,6 +20,8 @@ type AppAction =
   | { type: 'ADD_SERVICE'; payload: Service }
   | { type: 'UPDATE_SERVICE'; payload: Service }
   | { type: 'DELETE_SERVICE'; payload: string }
+  | { type: 'SET_BARBER'; payload: Barber | null }
+  | { type: 'UPDATE_AVAILABILITY'; payload: Availability[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'UPDATE_CREDITS'; payload: number };
 
@@ -27,6 +30,7 @@ const initialState: AppState = {
   appointments: [],
   subscriptions: [],
   services: [],
+  barber: null,
   isLoading: false,
 };
 
@@ -63,6 +67,13 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         ...state,
         services: state.services.filter(service => service.id !== action.payload),
       };
+    case 'SET_BARBER':
+      return { ...state, barber: action.payload };
+    case 'UPDATE_AVAILABILITY':
+      return {
+        ...state,
+        barber: state.barber ? { ...state.barber, availability: action.payload } : null,
+      };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'UPDATE_CREDITS':
@@ -88,6 +99,7 @@ interface AppContextType {
   addService: (service: Service) => void;
   updateService: (service: Service) => void;
   deleteService: (serviceId: string) => void;
+  updateAvailability: (availability: Availability[]) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -149,6 +161,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     dispatch({ type: 'DELETE_SERVICE', payload: serviceId });
   };
 
+  const updateAvailability = (availability: Availability[]) => {
+    dispatch({ type: 'UPDATE_AVAILABILITY', payload: availability });
+  };
+
   const value: AppContextType = {
     state,
     dispatch,
@@ -162,6 +178,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addService,
     updateService,
     deleteService,
+    updateAvailability,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

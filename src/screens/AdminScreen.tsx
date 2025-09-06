@@ -12,15 +12,17 @@ import { useApp } from '../context/AppContext';
 import { Service } from '../types';
 import ServiceEditModal from '../components/ServiceEditModal';
 import ServiceAddModal from '../components/ServiceAddModal';
+import ScheduleManagementModal from '../components/ScheduleManagementModal';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 
 const AdminScreen: React.FC = () => {
-  const { state, approveCheckIn, rejectCheckIn, addService, updateService, deleteService } = useApp();
-  const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'services'>('checkins');
+  const { state, approveCheckIn, rejectCheckIn, addService, updateService, deleteService, updateAvailability } = useApp();
+  const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'services' | 'schedule'>('checkins');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   const pendingCheckIns = state.appointments.filter(apt => apt.checkInStatus === 'arrived');
@@ -92,6 +94,19 @@ const AdminScreen: React.FC = () => {
 
   const handleCloseAddModal = () => {
     setAddModalVisible(false);
+  };
+
+  const handleManageSchedule = () => {
+    setScheduleModalVisible(true);
+  };
+
+  const handleSaveSchedule = (availability: any[]) => {
+    updateAvailability(availability);
+    setScheduleModalVisible(false);
+  };
+
+  const handleCloseScheduleModal = () => {
+    setScheduleModalVisible(false);
   };
 
   const renderCheckInCard = (appointment: any) => (
@@ -180,6 +195,14 @@ const AdminScreen: React.FC = () => {
         >
           <Text style={[styles.tabText, activeTab === 'services' && styles.activeTabText]}>
             Services
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'schedule' && styles.activeTab]}
+          onPress={() => setActiveTab('schedule')}
+        >
+          <Text style={[styles.tabText, activeTab === 'schedule' && styles.activeTabText]}>
+            Schedule
           </Text>
         </TouchableOpacity>
       </View>
@@ -278,6 +301,55 @@ const AdminScreen: React.FC = () => {
             </View>
           </View>
         )}
+
+        {activeTab === 'schedule' && (
+          <View style={styles.tabContent}>
+            <Text style={styles.sectionTitle}>Schedule Management</Text>
+            
+            <View style={styles.managementCard}>
+              <Text style={styles.managementCardTitle}>Weekly Availability</Text>
+              <Text style={styles.managementCardSubtitle}>
+                Set your working hours for each day of the week
+              </Text>
+              
+              {state.barber?.availability && state.barber.availability.length > 0 ? (
+                <View style={styles.schedulePreview}>
+                  {state.barber.availability.map((day) => {
+                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const dayName = dayNames[day.dayOfWeek];
+                    
+                    return (
+                      <View key={day.dayOfWeek} style={styles.scheduleDay}>
+                        <Text style={styles.scheduleDayName}>{dayName}</Text>
+                        {day.isAvailable ? (
+                          <Text style={styles.scheduleTime}>
+                            {day.startTime} - {day.endTime}
+                          </Text>
+                        ) : (
+                          <Text style={styles.scheduleUnavailable}>Not available</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.emptyState}>
+                  <Ionicons name="calendar-outline" size={48} color={colors.gray[300]} />
+                  <Text style={styles.emptyStateText}>No schedule set</Text>
+                  <Text style={styles.emptyStateSubtext}>Set your availability to get started</Text>
+                </View>
+              )}
+              
+              <TouchableOpacity 
+                style={styles.managementButton}
+                onPress={handleManageSchedule}
+              >
+                <Ionicons name="calendar-outline" size={24} color={colors.accent.primary} />
+                <Text style={styles.managementButtonText}>Manage Schedule</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Service Management Modals */}
@@ -293,6 +365,13 @@ const AdminScreen: React.FC = () => {
         visible={addModalVisible}
         onClose={handleCloseAddModal}
         onSave={handleAddNewService}
+      />
+      
+      <ScheduleManagementModal
+        visible={scheduleModalVisible}
+        availability={state.barber?.availability || []}
+        onClose={handleCloseScheduleModal}
+        onSave={handleSaveSchedule}
       />
     </View>
   );
@@ -548,6 +627,43 @@ const styles = StyleSheet.create({
   serviceDescription: {
     fontSize: typography.fontSize.xs,
     color: colors.gray[500],
+    fontStyle: 'italic',
+  },
+  managementCardTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  managementCardSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.lg,
+  },
+  schedulePreview: {
+    marginBottom: spacing.lg,
+  },
+  scheduleDay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomColor: colors.border.light,
+    borderBottomWidth: 1,
+  },
+  scheduleDayName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+  scheduleTime: {
+    fontSize: typography.fontSize.sm,
+    color: colors.accent.primary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  scheduleUnavailable: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[400],
     fontStyle: 'italic',
   },
 });
