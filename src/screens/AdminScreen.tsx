@@ -114,12 +114,14 @@ const AdminScreen: React.FC = () => {
   };
 
   const handleAddException = (date: string) => {
+    console.log('handleAddException called with date:', date);
     setSelectedDate(date);
     setSelectedException(null);
     setExceptionModalVisible(true);
   };
 
   const handleEditException = (exception: ScheduleException) => {
+    console.log('handleEditException called with exception:', exception);
     setSelectedDate(exception.date);
     setSelectedException(exception);
     setExceptionModalVisible(true);

@@ -220,28 +220,28 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
 
           {/* Schedule Exceptions Section */}
           <View style={styles.exceptionsContainer}>
-            <View style={styles.exceptionsHeader}>
-              <Text style={styles.sectionTitle}>Schedule Exceptions</Text>
-              <TouchableOpacity
-                style={styles.addExceptionButton}
-                onPress={() => {
-                  // For now, we'll use a simple date picker approach
-                  // In a real app, you'd want a proper date picker
-                  const today = new Date();
-                  const tomorrow = new Date(today);
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  const dateString = tomorrow.toISOString().split('T')[0];
-                  onAddException(dateString);
-                }}
-              >
-                <Ionicons name="add-circle-outline" size={20} color={colors.accent.primary} />
-                <Text style={styles.addExceptionText}>Add Exception</Text>
-              </TouchableOpacity>
-            </View>
-            
+            <Text style={styles.sectionTitle}>Schedule Exceptions</Text>
             <Text style={styles.sectionSubtitle}>
               Override your regular schedule for specific dates
             </Text>
+            
+            <TouchableOpacity
+              style={styles.addExceptionButton}
+              onPress={() => {
+                console.log('Add Exception button pressed');
+                // For now, we'll use a simple date picker approach
+                // In a real app, you'd want a proper date picker
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const dateString = tomorrow.toISOString().split('T')[0];
+                console.log('Calling onAddException with date:', dateString);
+                onAddException(dateString);
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={colors.accent.primary} />
+              <Text style={styles.addExceptionText}>Add Exception</Text>
+            </TouchableOpacity>
 
             {scheduleExceptions.length > 0 ? (
               <View style={styles.exceptionsList}>
@@ -249,7 +249,10 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
                   <TouchableOpacity
                     key={exception.id}
                     style={styles.exceptionItem}
-                    onPress={() => onEditException(exception)}
+                    onPress={() => {
+                      console.log('Exception item pressed:', exception);
+                      onEditException(exception);
+                    }}
                   >
                     <View style={styles.exceptionInfo}>
                       <Text style={styles.exceptionDate}>
@@ -466,21 +469,18 @@ const styles = StyleSheet.create({
   exceptionsContainer: {
     padding: spacing.lg,
   },
-  exceptionsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
   addExceptionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.accent.primary,
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
   },
   addExceptionText: {
     fontSize: typography.fontSize.sm,
