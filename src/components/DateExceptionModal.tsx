@@ -26,11 +26,11 @@ interface DateExceptionModalProps {
 }
 
 const TIME_SLOTS = [
-  '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30',
-  '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-  '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30',
-  '22:00', '22:30', '23:00', '23:30'
+  '6:00 AM', '6:30 AM', '7:00 AM', '7:30 AM', '8:00 AM', '8:30 AM', '9:00 AM', '9:30 AM',
+  '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
+  '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
+  '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM', '9:00 PM', '9:30 PM',
+  '10:00 PM', '10:30 PM', '11:00 PM', '11:30 PM'
 ];
 
 const DateExceptionModal: React.FC<DateExceptionModalProps> = ({
@@ -41,9 +41,10 @@ const DateExceptionModal: React.FC<DateExceptionModalProps> = ({
   onSave,
   onDelete,
 }) => {
+  console.log('DateExceptionModal rendered with:', { visible, selectedDate, existingException });
   const [formData, setFormData] = useState({
-    startTime: '09:00',
-    endTime: '17:00',
+    startTime: '9:00 AM',
+    endTime: '5:00 PM',
     isAvailable: true,
     reason: '',
   });
@@ -60,8 +61,8 @@ const DateExceptionModal: React.FC<DateExceptionModalProps> = ({
         });
       } else {
         setFormData({
-          startTime: '09:00',
-          endTime: '17:00',
+          startTime: '9:00 AM',
+          endTime: '5:00 PM',
           isAvailable: true,
           reason: '',
         });

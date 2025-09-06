@@ -34,21 +34,21 @@ export const mockBarber: Barber = {
   phone: '(555) 123-4567',
   specialties: ['Classic Cuts', 'Beard Trimming', 'Styling'],
   availability: [
-    { dayOfWeek: 1, startTime: '09:00', endTime: '17:00', isAvailable: true }, // Monday
-    { dayOfWeek: 2, startTime: '09:00', endTime: '17:00', isAvailable: true }, // Tuesday
-    { dayOfWeek: 3, startTime: '09:00', endTime: '17:00', isAvailable: true }, // Wednesday
-    { dayOfWeek: 4, startTime: '09:00', endTime: '17:00', isAvailable: true }, // Thursday
-    { dayOfWeek: 5, startTime: '09:00', endTime: '17:00', isAvailable: true }, // Friday
-    { dayOfWeek: 6, startTime: '10:00', endTime: '15:00', isAvailable: true }, // Saturday
-    { dayOfWeek: 0, startTime: '10:00', endTime: '15:00', isAvailable: false }, // Sunday
+    { dayOfWeek: 1, startTime: '9:00 AM', endTime: '5:00 PM', isAvailable: true }, // Monday
+    { dayOfWeek: 2, startTime: '9:00 AM', endTime: '5:00 PM', isAvailable: true }, // Tuesday
+    { dayOfWeek: 3, startTime: '9:00 AM', endTime: '5:00 PM', isAvailable: true }, // Wednesday
+    { dayOfWeek: 4, startTime: '9:00 AM', endTime: '5:00 PM', isAvailable: true }, // Thursday
+    { dayOfWeek: 5, startTime: '9:00 AM', endTime: '5:00 PM', isAvailable: true }, // Friday
+    { dayOfWeek: 6, startTime: '10:00 AM', endTime: '3:00 PM', isAvailable: true }, // Saturday
+    { dayOfWeek: 0, startTime: '10:00 AM', endTime: '3:00 PM', isAvailable: false }, // Sunday
   ],
   scheduleExceptions: [
     // Example: Christmas Day - not available
     {
       id: '1',
       date: '2024-12-25',
-      startTime: '00:00',
-      endTime: '00:00',
+      startTime: '12:00 AM',
+      endTime: '12:00 AM',
       isAvailable: false,
       reason: 'Christmas Day - Closed',
     },
@@ -56,8 +56,8 @@ export const mockBarber: Barber = {
     {
       id: '2',
       date: '2024-12-31',
-      startTime: '09:00',
-      endTime: '14:00',
+      startTime: '9:00 AM',
+      endTime: '2:00 PM',
       isAvailable: true,
       reason: 'New Year\'s Eve - Early closing',
     },

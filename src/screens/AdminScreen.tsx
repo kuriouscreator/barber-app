@@ -118,6 +118,7 @@ const AdminScreen: React.FC = () => {
     setSelectedDate(date);
     setSelectedException(null);
     setExceptionModalVisible(true);
+    console.log('Modal visibility set to true, selectedDate:', date);
   };
 
   const handleEditException = (exception: ScheduleException) => {
