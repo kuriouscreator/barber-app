@@ -371,6 +371,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: 'center',
+    minWidth: 80,
     ...shadows.sm,
   },
   statNumber: {
@@ -380,8 +381,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
+    textAlign: 'center',
+    flexWrap: 'nowrap',
   },
   appointmentsSection: {
     marginBottom: spacing.xl,

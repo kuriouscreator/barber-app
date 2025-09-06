@@ -67,6 +67,7 @@ const MainTabNavigator = () => {
           backgroundColor: colors.white,
           borderBottomColor: colors.border.light,
           borderBottomWidth: 1,
+          height: 100,
         },
         headerTitleStyle: {
           color: colors.text.primary,

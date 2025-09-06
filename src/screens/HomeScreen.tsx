@@ -438,8 +438,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
+    textAlign: 'center',
+    flexWrap: 'nowrap',
   },
 });
 
