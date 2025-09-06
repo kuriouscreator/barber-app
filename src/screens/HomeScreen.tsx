@@ -208,20 +208,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         )}
 
-        {/* Barber Info */}
-        <View style={styles.barberSection}>
-          <Text style={styles.sectionTitle}>Your Barber</Text>
-          <View style={styles.barberCard}>
-            <View style={styles.barberInfo}>
-              <Text style={styles.barberName}>Marcus Johnson</Text>
-              <Text style={styles.barberSpecialties}>Classic Cuts • Beard Trimming • Styling</Text>
-              <Text style={styles.barberPhone}>(555) 123-4567</Text>
+        {/* Barber Info - Only show for customers */}
+        {!isBarber && (
+          <View style={styles.barberSection}>
+            <Text style={styles.sectionTitle}>Your Barber</Text>
+            <View style={styles.barberCard}>
+              <View style={styles.barberInfo}>
+                <Text style={styles.barberName}>Marcus Johnson</Text>
+                <Text style={styles.barberSpecialties}>Classic Cuts • Beard Trimming • Styling</Text>
+                <Text style={styles.barberPhone}>(555) 123-4567</Text>
+              </View>
+              <TouchableOpacity style={styles.contactButton}>
+                <Ionicons name="call-outline" size={20} color={colors.white} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.contactButton}>
-              <Ionicons name="call-outline" size={20} color={colors.white} />
-            </TouchableOpacity>
           </View>
-        </View>
+        )}
       </View>
     </ScrollView>
   );
