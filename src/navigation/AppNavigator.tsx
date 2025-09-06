@@ -22,6 +22,9 @@ const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const MainTabNavigator = () => {
+  const { state } = useApp();
+  const isBarber = state.user?.role === 'barber';
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -77,21 +80,25 @@ const MainTabNavigator = () => {
         component={HomeScreen} 
         options={{ title: 'Home' }}
       />
-      <Tab.Screen 
-        name="Book" 
-        component={BookScreen} 
-        options={{ title: 'Book' }}
-      />
+      {!isBarber && (
+        <Tab.Screen 
+          name="Book" 
+          component={BookScreen} 
+          options={{ title: 'Book' }}
+        />
+      )}
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen} 
         options={{ title: 'Profile' }}
       />
-      <Tab.Screen 
-        name="Admin" 
-        component={AdminScreen} 
-        options={{ title: 'Admin' }}
-      />
+      {isBarber && (
+        <Tab.Screen 
+          name="Admin" 
+          component={AdminScreen} 
+          options={{ title: 'Admin' }}
+        />
+      )}
     </Tab.Navigator>
   );
 };

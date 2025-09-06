@@ -12,6 +12,7 @@ import {
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { useApp } from '../context/AppContext';
+import { demoUsers } from '../data/mockData';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -38,24 +39,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     
     // Simulate API call
     setTimeout(() => {
-      // Mock user data
-      const mockUser = {
-        id: '1',
-        name: 'John Doe',
-        email: email,
-        phone: '+1 (555) 123-4567',
-        credits: 3,
-        subscription: {
-          id: '2',
-          name: 'Premium',
-          price: 79.99,
-          credits: 3,
-          duration: 'monthly' as const,
-          description: '3 haircuts per month',
-        },
-      };
-      
-      login(mockUser);
+      // Check for demo accounts
+      if (email === 'customer@demo.com' && password === 'customer123') {
+        login(demoUsers.customer);
+      } else if (email === 'barber@demo.com' && password === 'barber123') {
+        login(demoUsers.barber);
+      } else {
+        // Default to customer account for any other credentials
+        login(demoUsers.customer);
+      }
       setIsLoading(false);
     }, 1000);
   };
@@ -114,6 +106,18 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={styles.linkText}>Sign Up</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.demoAccounts}>
+          <Text style={styles.demoTitle}>Demo Accounts:</Text>
+          <View style={styles.demoAccount}>
+            <Text style={styles.demoLabel}>Customer:</Text>
+            <Text style={styles.demoText}>customer@demo.com / customer123</Text>
+          </View>
+          <View style={styles.demoAccount}>
+            <Text style={styles.demoLabel}>Barber:</Text>
+            <Text style={styles.demoText}>barber@demo.com / barber123</Text>
+          </View>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -194,6 +198,31 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.black,
     fontWeight: typography.fontWeight.semibold,
+  },
+  demoAccounts: {
+    marginTop: spacing.xl,
+    padding: spacing.md,
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.md,
+  },
+  demoTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  demoAccount: {
+    marginBottom: spacing.xs,
+  },
+  demoLabel: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+  },
+  demoText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    fontFamily: 'monospace',
   },
 });
 

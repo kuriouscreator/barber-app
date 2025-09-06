@@ -1,8 +1,11 @@
+export type UserRole = 'customer' | 'barber';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   phone?: string;
+  role: UserRole;
   subscription?: Subscription;
   credits: number;
 }

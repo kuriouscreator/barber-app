@@ -1,4 +1,4 @@
-import { Subscription, Barber, Service } from '../types';
+import { Subscription, Barber, Service, User } from '../types';
 
 export const mockSubscriptions: Subscription[] = [
   {
@@ -74,3 +74,31 @@ export const mockServices: Service[] = [
     description: 'Hair styling and finishing',
   },
 ];
+
+// Demo accounts for testing
+export const demoUsers: { [key: string]: User } = {
+  customer: {
+    id: 'customer-1',
+    name: 'John Doe',
+    email: 'customer@demo.com',
+    phone: '+1 (555) 123-4567',
+    role: 'customer',
+    credits: 3,
+    subscription: {
+      id: '2',
+      name: 'Premium',
+      price: 79.99,
+      credits: 3,
+      duration: 'monthly',
+      description: '3 haircuts per month',
+    },
+  },
+  barber: {
+    id: 'barber-1',
+    name: 'Marcus Johnson',
+    email: 'barber@demo.com',
+    phone: '+1 (555) 987-6543',
+    role: 'barber',
+    credits: 0, // Barbers don't need credits
+  },
+};

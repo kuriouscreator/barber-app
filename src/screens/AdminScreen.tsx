@@ -15,7 +15,7 @@ import { spacing, borderRadius, shadows } from '../theme/spacing';
 
 const AdminScreen: React.FC = () => {
   const { state, approveCheckIn, rejectCheckIn } = useApp();
-  const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'subscriptions'>('checkins');
+  const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'services'>('checkins');
 
   const pendingCheckIns = state.appointments.filter(apt => apt.checkInStatus === 'arrived');
   const todayAppointments = state.appointments.filter(apt => {
@@ -130,11 +130,11 @@ const AdminScreen: React.FC = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'subscriptions' && styles.activeTab]}
-          onPress={() => setActiveTab('subscriptions')}
+          style={[styles.tab, activeTab === 'services' && styles.activeTab]}
+          onPress={() => setActiveTab('services')}
         >
-          <Text style={[styles.tabText, activeTab === 'subscriptions' && styles.activeTabText]}>
-            Subscriptions
+          <Text style={[styles.tabText, activeTab === 'services' && styles.activeTabText]}>
+            Services
           </Text>
         </TouchableOpacity>
       </View>
@@ -179,13 +179,13 @@ const AdminScreen: React.FC = () => {
           </View>
         )}
 
-        {activeTab === 'subscriptions' && (
+        {activeTab === 'services' && (
           <View style={styles.tabContent}>
-            <Text style={styles.sectionTitle}>Subscription Management</Text>
+            <Text style={styles.sectionTitle}>Service Management</Text>
             <View style={styles.subscriptionStats}>
               <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{state.subscriptions.length}</Text>
-                <Text style={styles.statLabel}>Active Plans</Text>
+                <Text style={styles.statNumber}>4</Text>
+                <Text style={styles.statLabel}>Active Services</Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statNumber}>
@@ -196,18 +196,33 @@ const AdminScreen: React.FC = () => {
             </View>
             
             <View style={styles.managementCard}>
-              <Text style={styles.managementTitle}>Quick Actions</Text>
+              <Text style={styles.managementTitle}>Available Services</Text>
+              <View style={styles.serviceList}>
+                <View style={styles.serviceItem}>
+                  <Text style={styles.serviceItemName}>Classic Haircut</Text>
+                  <Text style={styles.serviceDetails}>30 min • $25</Text>
+                </View>
+                <View style={styles.serviceItem}>
+                  <Text style={styles.serviceItemName}>Beard Trim</Text>
+                  <Text style={styles.serviceDetails}>20 min • $15</Text>
+                </View>
+                <View style={styles.serviceItem}>
+                  <Text style={styles.serviceItemName}>Haircut + Beard</Text>
+                  <Text style={styles.serviceDetails}>45 min • $35</Text>
+                </View>
+                <View style={styles.serviceItem}>
+                  <Text style={styles.serviceItemName}>Styling</Text>
+                  <Text style={styles.serviceDetails}>15 min • $10</Text>
+                </View>
+              </View>
+              
               <TouchableOpacity style={styles.managementButton}>
                 <Ionicons name="add-circle-outline" size={24} color={colors.accent.primary} />
-                <Text style={styles.managementButtonText}>Add New Plan</Text>
+                <Text style={styles.managementButtonText}>Add New Service</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.managementButton}>
                 <Ionicons name="settings-outline" size={24} color={colors.accent.primary} />
-                <Text style={styles.managementButtonText}>Edit Plans</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.managementButton}>
-                <Ionicons name="analytics-outline" size={24} color={colors.accent.primary} />
-                <Text style={styles.managementButtonText}>View Analytics</Text>
+                <Text style={styles.managementButtonText}>Edit Services</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -435,6 +450,26 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.text.primary,
     marginLeft: spacing.md,
+  },
+  serviceList: {
+    marginBottom: spacing.lg,
+  },
+  serviceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomColor: colors.border.light,
+    borderBottomWidth: 1,
+  },
+  serviceItemName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+  serviceDetails: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
   },
 });
 

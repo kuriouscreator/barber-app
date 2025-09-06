@@ -24,14 +24,22 @@ interface Props {
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { state } = useApp();
   const { user, appointments } = state;
+  const isBarber = user?.role === 'barber';
 
   const upcomingAppointments = appointments
     .filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(0, 2);
 
+  const todayAppointments = appointments.filter(apt => {
+    const today = new Date().toISOString().split('T')[0];
+    return apt.date === today;
+  });
+
   const handleBookAppointment = () => {
-    navigation.navigate('Book');
+    if (!isBarber) {
+      navigation.navigate('Book');
+    }
   };
 
   const handleViewSubscription = () => {
@@ -62,52 +70,109 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.userName}>{user?.name}</Text>
-        </View>
-
-        {/* Credits Card */}
-        <View style={styles.creditsCard}>
-          <View style={styles.creditsHeader}>
-            <Ionicons name="cut-outline" size={24} color={colors.accent.primary} />
-            <Text style={styles.creditsTitle}>Haircut Credits</Text>
-          </View>
-          <Text style={styles.creditsCount}>{user?.credits || 0}</Text>
-          <Text style={styles.creditsSubtext}>
-            {user?.credits === 0 
-              ? 'No credits remaining' 
-              : `${user?.credits} credit${user?.credits === 1 ? '' : 's'} remaining`
-            }
-          </Text>
-          {user?.credits === 0 && (
-            <TouchableOpacity 
-              style={styles.subscribeButton}
-              onPress={handleViewSubscription}
-            >
-              <Text style={styles.subscribeButtonText}>Get Subscription</Text>
-            </TouchableOpacity>
+          {isBarber && (
+            <Text style={styles.roleBadge}>Barber</Text>
           )}
         </View>
+
+        {/* Credits Card - Only for customers */}
+        {!isBarber && (
+          <View style={styles.creditsCard}>
+            <View style={styles.creditsHeader}>
+              <Ionicons name="cut-outline" size={24} color={colors.accent.primary} />
+              <Text style={styles.creditsTitle}>Haircut Credits</Text>
+            </View>
+            <Text style={styles.creditsCount}>{user?.credits || 0}</Text>
+            <Text style={styles.creditsSubtext}>
+              {user?.credits === 0 
+                ? 'No credits remaining' 
+                : `${user?.credits} credit${user?.credits === 1 ? '' : 's'} remaining`
+              }
+            </Text>
+            {user?.credits === 0 && (
+              <TouchableOpacity 
+                style={styles.subscribeButton}
+                onPress={handleViewSubscription}
+              >
+                <Text style={styles.subscribeButtonText}>Get Subscription</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Barber Stats Card */}
+        {isBarber && (
+          <View style={styles.creditsCard}>
+            <View style={styles.creditsHeader}>
+              <Ionicons name="stats-chart-outline" size={24} color={colors.accent.primary} />
+              <Text style={styles.creditsTitle}>Today's Overview</Text>
+            </View>
+            <View style={styles.barberStats}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{todayAppointments.length}</Text>
+                <Text style={styles.statLabel}>Appointments</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>
+                  {appointments.filter(apt => apt.checkInStatus === 'arrived').length}
+                </Text>
+                <Text style={styles.statLabel}>Check-ins</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>
+                  {appointments.filter(apt => apt.status === 'completed').length}
+                </Text>
+                <Text style={styles.statLabel}>Completed</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={handleBookAppointment}
-            >
-              <Ionicons name="calendar-outline" size={32} color={colors.accent.primary} />
-              <Text style={styles.actionTitle}>Book Appointment</Text>
-              <Text style={styles.actionSubtitle}>Schedule your next cut</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={handleViewSubscription}
-            >
-              <Ionicons name="card-outline" size={32} color={colors.accent.primary} />
-              <Text style={styles.actionTitle}>Manage Plan</Text>
-              <Text style={styles.actionSubtitle}>View subscription</Text>
-            </TouchableOpacity>
+            {!isBarber ? (
+              <>
+                <TouchableOpacity 
+                  style={styles.actionCard}
+                  onPress={handleBookAppointment}
+                >
+                  <Ionicons name="calendar-outline" size={32} color={colors.accent.primary} />
+                  <Text style={styles.actionTitle}>Book Appointment</Text>
+                  <Text style={styles.actionSubtitle}>Schedule your next cut</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.actionCard}
+                  onPress={handleViewSubscription}
+                >
+                  <Ionicons name="card-outline" size={32} color={colors.accent.primary} />
+                  <Text style={styles.actionTitle}>Manage Plan</Text>
+                  <Text style={styles.actionSubtitle}>View subscription</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity 
+                  style={styles.actionCard}
+                  onPress={() => navigation.navigate('Admin')}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={32} color={colors.accent.primary} />
+                  <Text style={styles.actionTitle}>Check-ins</Text>
+                  <Text style={styles.actionSubtitle}>Approve arrivals</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.actionCard}
+                  onPress={() => navigation.navigate('Admin')}
+                >
+                  <Ionicons name="calendar-outline" size={32} color={colors.accent.primary} />
+                  <Text style={styles.actionTitle}>Schedule</Text>
+                  <Text style={styles.actionSubtitle}>Manage availability</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
@@ -181,6 +246,17 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize['3xl'],
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
+  },
+  roleBadge: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.accent.primary,
+    backgroundColor: colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
   },
   creditsCard: {
     backgroundColor: colors.white,
@@ -346,6 +422,24 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  barberStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: spacing.md,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.accent.primary,
+    marginBottom: spacing.xs,
+  },
+  statLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
   },
 });
 

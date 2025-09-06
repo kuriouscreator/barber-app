@@ -12,6 +12,7 @@ import {
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { useApp } from '../context/AppContext';
+import { demoUsers } from '../data/mockData';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -40,16 +41,18 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     
     // Simulate API call
     setTimeout(() => {
-      // Mock user data
-      const mockUser = {
-        id: '1',
+      // Default to customer account for new registrations
+      const newUser = {
+        ...demoUsers.customer,
+        id: Date.now().toString(),
         name: name,
         email: email,
         phone: phone,
         credits: 0,
+        subscription: undefined,
       };
       
-      login(mockUser);
+      login(newUser);
       setIsLoading(false);
     }, 1000);
   };

@@ -25,6 +25,7 @@ interface Props {
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { state, logout } = useApp();
   const { user, appointments } = state;
+  const isBarber = user?.role === 'barber';
 
   const handleLogout = () => {
     Alert.alert(
@@ -75,48 +76,75 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Subscription Card */}
-        <View style={styles.subscriptionCard}>
-          <View style={styles.subscriptionHeader}>
-            <Ionicons name="card-outline" size={24} color={colors.accent.primary} />
-            <Text style={styles.subscriptionTitle}>Current Plan</Text>
+        {/* Subscription Card - Only for customers */}
+        {!isBarber && (
+          <View style={styles.subscriptionCard}>
+            <View style={styles.subscriptionHeader}>
+              <Ionicons name="card-outline" size={24} color={colors.accent.primary} />
+              <Text style={styles.subscriptionTitle}>Current Plan</Text>
+            </View>
+            
+            {user?.subscription ? (
+              <View style={styles.subscriptionInfo}>
+                <Text style={styles.subscriptionName}>{user.subscription.name}</Text>
+                <Text style={styles.subscriptionDescription}>
+                  {user.subscription.description}
+                </Text>
+                <Text style={styles.subscriptionPrice}>
+                  ${user.subscription.price}/{user.subscription.duration}
+                </Text>
+                <View style={styles.creditsInfo}>
+                  <Text style={styles.creditsText}>
+                    {user.credits} credit{user.credits === 1 ? '' : 's'} remaining
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.noSubscription}>
+                <Text style={styles.noSubscriptionText}>No active subscription</Text>
+                <TouchableOpacity 
+                  style={styles.subscribeButton}
+                  onPress={handleManageSubscription}
+                >
+                  <Text style={styles.subscribeButtonText}>Get Started</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.manageButton}
+              onPress={handleManageSubscription}
+            >
+              <Text style={styles.manageButtonText}>Manage Subscription</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.accent.primary} />
+            </TouchableOpacity>
           </View>
-          
-          {user?.subscription ? (
+        )}
+
+        {/* Barber Info Card */}
+        {isBarber && (
+          <View style={styles.subscriptionCard}>
+            <View style={styles.subscriptionHeader}>
+              <Ionicons name="business-outline" size={24} color={colors.accent.primary} />
+              <Text style={styles.subscriptionTitle}>Barber Profile</Text>
+            </View>
+            
             <View style={styles.subscriptionInfo}>
-              <Text style={styles.subscriptionName}>{user.subscription.name}</Text>
+              <Text style={styles.subscriptionName}>Marcus Johnson</Text>
               <Text style={styles.subscriptionDescription}>
-                {user.subscription.description}
+                Professional Barber & Stylist
               </Text>
               <Text style={styles.subscriptionPrice}>
-                ${user.subscription.price}/{user.subscription.duration}
+                Specialties: Classic Cuts, Beard Trimming, Styling
               </Text>
               <View style={styles.creditsInfo}>
                 <Text style={styles.creditsText}>
-                  {user.credits} credit{user.credits === 1 ? '' : 's'} remaining
+                  Available Monday-Friday 9AM-5PM, Saturday 10AM-3PM
                 </Text>
               </View>
             </View>
-          ) : (
-            <View style={styles.noSubscription}>
-              <Text style={styles.noSubscriptionText}>No active subscription</Text>
-              <TouchableOpacity 
-                style={styles.subscribeButton}
-                onPress={handleManageSubscription}
-              >
-                <Text style={styles.subscribeButtonText}>Get Started</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          
-          <TouchableOpacity 
-            style={styles.manageButton}
-            onPress={handleManageSubscription}
-          >
-            <Text style={styles.manageButtonText}>Manage Subscription</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.accent.primary} />
-          </TouchableOpacity>
-        </View>
+          </View>
+        )}
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
@@ -129,8 +157,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.statLabel}>Upcoming</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{user?.credits || 0}</Text>
-            <Text style={styles.statLabel}>Credits</Text>
+            <Text style={styles.statNumber}>
+              {isBarber ? appointments.length : (user?.credits || 0)}
+            </Text>
+            <Text style={styles.statLabel}>
+              {isBarber ? 'Total Services' : 'Credits'}
+            </Text>
           </View>
         </View>
 
