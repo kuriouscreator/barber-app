@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Availability } from '../types';
+import { Availability, ScheduleException } from '../types';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -18,8 +18,11 @@ import { spacing, borderRadius } from '../theme/spacing';
 interface ScheduleManagementModalProps {
   visible: boolean;
   availability: Availability[];
+  scheduleExceptions: ScheduleException[];
   onClose: () => void;
   onSave: (availability: Availability[]) => void;
+  onAddException: (date: string) => void;
+  onEditException: (exception: ScheduleException) => void;
 }
 
 const DAYS_OF_WEEK = [
@@ -43,8 +46,11 @@ const TIME_SLOTS = [
 const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
   visible,
   availability,
+  scheduleExceptions,
   onClose,
   onSave,
+  onAddException,
+  onEditException,
 }) => {
   const [schedule, setSchedule] = useState<Availability[]>([]);
 
@@ -93,6 +99,15 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
     }
 
     onSave(schedule);
+  };
+
+  const formatExceptionDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   const getDaySchedule = (dayOfWeek: number) => {
@@ -201,6 +216,69 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
             </Text>
             
             {DAYS_OF_WEEK.map(renderDaySchedule)}
+          </View>
+
+          {/* Schedule Exceptions Section */}
+          <View style={styles.exceptionsContainer}>
+            <View style={styles.exceptionsHeader}>
+              <Text style={styles.sectionTitle}>Schedule Exceptions</Text>
+              <TouchableOpacity
+                style={styles.addExceptionButton}
+                onPress={() => {
+                  // For now, we'll use a simple date picker approach
+                  // In a real app, you'd want a proper date picker
+                  const today = new Date();
+                  const tomorrow = new Date(today);
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  const dateString = tomorrow.toISOString().split('T')[0];
+                  onAddException(dateString);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={colors.accent.primary} />
+                <Text style={styles.addExceptionText}>Add Exception</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.sectionSubtitle}>
+              Override your regular schedule for specific dates
+            </Text>
+
+            {scheduleExceptions.length > 0 ? (
+              <View style={styles.exceptionsList}>
+                {scheduleExceptions.map((exception) => (
+                  <TouchableOpacity
+                    key={exception.id}
+                    style={styles.exceptionItem}
+                    onPress={() => onEditException(exception)}
+                  >
+                    <View style={styles.exceptionInfo}>
+                      <Text style={styles.exceptionDate}>
+                        {formatExceptionDate(exception.date)}
+                      </Text>
+                      {exception.isAvailable ? (
+                        <Text style={styles.exceptionTime}>
+                          {exception.startTime} - {exception.endTime}
+                        </Text>
+                      ) : (
+                        <Text style={styles.exceptionUnavailable}>Not available</Text>
+                      )}
+                      {exception.reason && (
+                        <Text style={styles.exceptionReason}>{exception.reason}</Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyExceptions}>
+                <Ionicons name="calendar-outline" size={32} color={colors.gray[300]} />
+                <Text style={styles.emptyExceptionsText}>No exceptions set</Text>
+                <Text style={styles.emptyExceptionsSubtext}>
+                  Add exceptions for holidays, special hours, or personal time off
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
 
@@ -384,6 +462,88 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     color: colors.white,
+  },
+  exceptionsContainer: {
+    padding: spacing.lg,
+  },
+  exceptionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  addExceptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.accent.primary,
+  },
+  addExceptionText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.accent.primary,
+    marginLeft: spacing.xs,
+  },
+  exceptionsList: {
+    marginTop: spacing.md,
+  },
+  exceptionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  exceptionInfo: {
+    flex: 1,
+  },
+  exceptionDate: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  exceptionTime: {
+    fontSize: typography.fontSize.sm,
+    color: colors.accent.primary,
+    fontWeight: typography.fontWeight.medium,
+    marginBottom: spacing.xs,
+  },
+  exceptionUnavailable: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[400],
+    fontStyle: 'italic',
+    marginBottom: spacing.xs,
+  },
+  exceptionReason: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  emptyExceptions: {
+    alignItems: 'center',
+    paddingVertical: spacing['2xl'],
+  },
+  emptyExceptionsText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  emptyExceptionsSubtext: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
   },
 });
 

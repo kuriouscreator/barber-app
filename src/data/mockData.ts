@@ -42,6 +42,26 @@ export const mockBarber: Barber = {
     { dayOfWeek: 6, startTime: '10:00', endTime: '15:00', isAvailable: true }, // Saturday
     { dayOfWeek: 0, startTime: '10:00', endTime: '15:00', isAvailable: false }, // Sunday
   ],
+  scheduleExceptions: [
+    // Example: Christmas Day - not available
+    {
+      id: '1',
+      date: '2024-12-25',
+      startTime: '00:00',
+      endTime: '00:00',
+      isAvailable: false,
+      reason: 'Christmas Day - Closed',
+    },
+    // Example: New Year's Eve - early closing
+    {
+      id: '2',
+      date: '2024-12-31',
+      startTime: '09:00',
+      endTime: '14:00',
+      isAvailable: true,
+      reason: 'New Year\'s Eve - Early closing',
+    },
+  ],
 };
 
 export const mockServices: Service[] = [

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { User, Subscription, Appointment, Service, Barber, Availability } from '../types';
+import { User, Subscription, Appointment, Service, Barber, Availability, ScheduleException } from '../types';
 
 interface AppState {
   user: User | null;
@@ -22,6 +22,9 @@ type AppAction =
   | { type: 'DELETE_SERVICE'; payload: string }
   | { type: 'SET_BARBER'; payload: Barber | null }
   | { type: 'UPDATE_AVAILABILITY'; payload: Availability[] }
+  | { type: 'ADD_SCHEDULE_EXCEPTION'; payload: ScheduleException }
+  | { type: 'UPDATE_SCHEDULE_EXCEPTION'; payload: ScheduleException }
+  | { type: 'DELETE_SCHEDULE_EXCEPTION'; payload: string }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'UPDATE_CREDITS'; payload: number };
 
@@ -74,6 +77,32 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         ...state,
         barber: state.barber ? { ...state.barber, availability: action.payload } : null,
       };
+    case 'ADD_SCHEDULE_EXCEPTION':
+      return {
+        ...state,
+        barber: state.barber ? { 
+          ...state.barber, 
+          scheduleExceptions: [...state.barber.scheduleExceptions, action.payload] 
+        } : null,
+      };
+    case 'UPDATE_SCHEDULE_EXCEPTION':
+      return {
+        ...state,
+        barber: state.barber ? {
+          ...state.barber,
+          scheduleExceptions: state.barber.scheduleExceptions.map(exception =>
+            exception.id === action.payload.id ? action.payload : exception
+          ),
+        } : null,
+      };
+    case 'DELETE_SCHEDULE_EXCEPTION':
+      return {
+        ...state,
+        barber: state.barber ? {
+          ...state.barber,
+          scheduleExceptions: state.barber.scheduleExceptions.filter(exception => exception.id !== action.payload),
+        } : null,
+      };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'UPDATE_CREDITS':
@@ -100,6 +129,10 @@ interface AppContextType {
   updateService: (service: Service) => void;
   deleteService: (serviceId: string) => void;
   updateAvailability: (availability: Availability[]) => void;
+  addScheduleException: (exception: ScheduleException) => void;
+  updateScheduleException: (exception: ScheduleException) => void;
+  deleteScheduleException: (exceptionId: string) => void;
+  getAvailabilityForDate: (date: string) => { startTime: string; endTime: string; isAvailable: boolean } | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -165,6 +198,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     dispatch({ type: 'UPDATE_AVAILABILITY', payload: availability });
   };
 
+  const addScheduleException = (exception: ScheduleException) => {
+    dispatch({ type: 'ADD_SCHEDULE_EXCEPTION', payload: exception });
+  };
+
+  const updateScheduleException = (exception: ScheduleException) => {
+    dispatch({ type: 'UPDATE_SCHEDULE_EXCEPTION', payload: exception });
+  };
+
+  const deleteScheduleException = (exceptionId: string) => {
+    dispatch({ type: 'DELETE_SCHEDULE_EXCEPTION', payload: exceptionId });
+  };
+
+  const getAvailabilityForDate = (date: string) => {
+    if (!state.barber) return null;
+
+    // First check for schedule exceptions (they take priority)
+    const exception = state.barber.scheduleExceptions.find(ex => ex.date === date);
+    if (exception) {
+      return {
+        startTime: exception.startTime,
+        endTime: exception.endTime,
+        isAvailable: exception.isAvailable,
+      };
+    }
+
+    // If no exception, use recurring weekly schedule
+    const dayOfWeek = new Date(date).getDay();
+    const weeklyAvailability = state.barber.availability.find(av => av.dayOfWeek === dayOfWeek);
+    
+    if (weeklyAvailability) {
+      return {
+        startTime: weeklyAvailability.startTime,
+        endTime: weeklyAvailability.endTime,
+        isAvailable: weeklyAvailability.isAvailable,
+      };
+    }
+
+    return null;
+  };
+
   const value: AppContextType = {
     state,
     dispatch,
@@ -179,6 +252,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateService,
     deleteService,
     updateAvailability,
+    addScheduleException,
+    updateScheduleException,
+    deleteScheduleException,
+    getAvailabilityForDate,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

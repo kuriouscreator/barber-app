@@ -9,21 +9,25 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { Service } from '../types';
+import { Service, ScheduleException } from '../types';
 import ServiceEditModal from '../components/ServiceEditModal';
 import ServiceAddModal from '../components/ServiceAddModal';
 import ScheduleManagementModal from '../components/ScheduleManagementModal';
+import DateExceptionModal from '../components/DateExceptionModal';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 
 const AdminScreen: React.FC = () => {
-  const { state, approveCheckIn, rejectCheckIn, addService, updateService, deleteService, updateAvailability } = useApp();
+  const { state, approveCheckIn, rejectCheckIn, addService, updateService, deleteService, updateAvailability, addScheduleException, updateScheduleException, deleteScheduleException } = useApp();
   const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'services' | 'schedule'>('checkins');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [exceptionModalVisible, setExceptionModalVisible] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedException, setSelectedException] = useState<ScheduleException | null>(null);
 
   const pendingCheckIns = state.appointments.filter(apt => apt.checkInStatus === 'arrived');
   const todayAppointments = state.appointments.filter(apt => {
@@ -107,6 +111,42 @@ const AdminScreen: React.FC = () => {
 
   const handleCloseScheduleModal = () => {
     setScheduleModalVisible(false);
+  };
+
+  const handleAddException = (date: string) => {
+    setSelectedDate(date);
+    setSelectedException(null);
+    setExceptionModalVisible(true);
+  };
+
+  const handleEditException = (exception: ScheduleException) => {
+    setSelectedDate(exception.date);
+    setSelectedException(exception);
+    setExceptionModalVisible(true);
+  };
+
+  const handleSaveException = (exception: ScheduleException) => {
+    if (selectedException) {
+      updateScheduleException(exception);
+    } else {
+      addScheduleException(exception);
+    }
+    setExceptionModalVisible(false);
+    setSelectedDate(null);
+    setSelectedException(null);
+  };
+
+  const handleDeleteException = (exceptionId: string) => {
+    deleteScheduleException(exceptionId);
+    setExceptionModalVisible(false);
+    setSelectedDate(null);
+    setSelectedException(null);
+  };
+
+  const handleCloseExceptionModal = () => {
+    setExceptionModalVisible(false);
+    setSelectedDate(null);
+    setSelectedException(null);
   };
 
   const renderCheckInCard = (appointment: any) => (
@@ -370,8 +410,20 @@ const AdminScreen: React.FC = () => {
       <ScheduleManagementModal
         visible={scheduleModalVisible}
         availability={state.barber?.availability || []}
+        scheduleExceptions={state.barber?.scheduleExceptions || []}
         onClose={handleCloseScheduleModal}
         onSave={handleSaveSchedule}
+        onAddException={handleAddException}
+        onEditException={handleEditException}
+      />
+      
+      <DateExceptionModal
+        visible={exceptionModalVisible}
+        selectedDate={selectedDate}
+        existingException={selectedException}
+        onClose={handleCloseExceptionModal}
+        onSave={handleSaveException}
+        onDelete={handleDeleteException}
       />
     </View>
   );

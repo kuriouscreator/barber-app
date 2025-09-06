@@ -38,6 +38,7 @@ export interface Barber {
   phone: string;
   specialties: string[];
   availability: Availability[];
+  scheduleExceptions: ScheduleException[];
 }
 
 export interface Availability {
@@ -53,6 +54,15 @@ export interface Service {
   duration: number; // in minutes
   price: number;
   description: string;
+}
+
+export interface ScheduleException {
+  id: string;
+  date: string; // YYYY-MM-DD format
+  startTime: string;
+  endTime: string;
+  isAvailable: boolean;
+  reason?: string; // Optional reason for the exception
 }
 
 export type RootStackParamList = {
