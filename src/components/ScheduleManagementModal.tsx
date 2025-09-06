@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   TextInput,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Availability, ScheduleException } from '../types';
@@ -63,6 +64,9 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
     isAvailable: true,
     reason: '',
   });
+  
+  const scrollViewRef = useRef<ScrollView>(null);
+  const formAnimation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -76,6 +80,30 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
       setSchedule(initialSchedule);
     }
   }, [visible, availability]);
+
+  // Handle form animation and auto-scroll
+  useEffect(() => {
+    if (showExceptionForm) {
+      // Animate form appearance
+      Animated.timing(formAnimation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+
+      // Auto-scroll to form after a short delay
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 350);
+    } else {
+      // Animate form disappearance
+      Animated.timing(formAnimation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showExceptionForm, formAnimation]);
 
   const updateDayAvailability = (dayOfWeek: number, isAvailable: boolean) => {
     setSchedule(prev => prev.map(day => 
@@ -155,6 +183,45 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
     });
     setEditingException(null);
     setShowExceptionForm(true);
+  };
+
+  const handleDateChange = (dateString: string) => {
+    setExceptionFormData(prev => ({ ...prev, date: dateString }));
+  };
+
+  const showDatePicker = () => {
+    Alert.alert(
+      'Select Date',
+      'Choose a date for this exception',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Today', 
+          onPress: () => {
+            const today = new Date().toISOString().split('T')[0];
+            handleDateChange(today);
+          }
+        },
+        { 
+          text: 'Tomorrow', 
+          onPress: () => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const dateString = tomorrow.toISOString().split('T')[0];
+            handleDateChange(dateString);
+          }
+        },
+        { 
+          text: 'Next Week', 
+          onPress: () => {
+            const nextWeek = new Date();
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            const dateString = nextWeek.toISOString().split('T')[0];
+            handleDateChange(dateString);
+          }
+        },
+      ]
+    );
   };
 
   const handleEditException = (exception: ScheduleException) => {
@@ -353,7 +420,11 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.scheduleContainer}>
             <Text style={styles.sectionTitle}>Weekly Availability</Text>
             <Text style={styles.sectionSubtitle}>
@@ -418,7 +489,20 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
 
           {/* Inline Exception Form */}
           {showExceptionForm && (
-            <View style={styles.exceptionFormContainer}>
+            <Animated.View 
+              style={[
+                styles.exceptionFormContainer,
+                {
+                  opacity: formAnimation,
+                  transform: [{
+                    translateY: formAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  }],
+                },
+              ]}
+            >
               <View style={styles.exceptionFormHeader}>
                 <Text style={styles.exceptionFormTitle}>
                   {editingException ? 'Edit Exception' : 'Add Exception'}
@@ -429,12 +513,13 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
               </View>
 
               <View style={styles.exceptionForm}>
-                <View style={styles.dateDisplay}>
+                <TouchableOpacity style={styles.dateDisplay} onPress={showDatePicker}>
                   <Ionicons name="calendar-outline" size={20} color={colors.accent.primary} />
                   <Text style={styles.dateDisplayText}>
                     {exceptionFormData.date ? formatExceptionDate(exceptionFormData.date) : 'Select a date'}
                   </Text>
-                </View>
+                  <Ionicons name="chevron-down" size={16} color={colors.gray[400]} />
+                </TouchableOpacity>
 
                 <View style={styles.availabilityToggle}>
                   <Text style={styles.availabilityLabel}>Available on this date</Text>
@@ -484,7 +569,7 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </Animated.View>
           )}
         </ScrollView>
 
@@ -752,8 +837,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     margin: spacing.lg,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.light,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    shadowColor: colors.accent.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   exceptionFormHeader: {
     flexDirection: 'row',
@@ -774,10 +867,13 @@ const styles = StyleSheet.create({
   dateDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.light,
   },
   dateDisplayText: {
     fontSize: typography.fontSize.base,
