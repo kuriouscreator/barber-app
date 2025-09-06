@@ -10,6 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { Service, ScheduleException } from '../types';
+import { RouteProp } from '@react-navigation/native';
+import { MainTabParamList } from '../types';
 import ServiceEditModal from '../components/ServiceEditModal';
 import ServiceAddModal from '../components/ServiceAddModal';
 import ScheduleManagementModal from '../components/ScheduleManagementModal';
@@ -17,9 +19,17 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 
-const AdminScreen: React.FC = () => {
+type AdminScreenRouteProp = RouteProp<MainTabParamList, 'Admin'>;
+
+interface AdminScreenProps {
+  route: AdminScreenRouteProp;
+}
+
+const AdminScreen: React.FC<AdminScreenProps> = ({ route }) => {
   const { state, addService, updateService, deleteService, updateAvailability, addScheduleException, updateScheduleException, deleteScheduleException } = useApp();
-  const [activeTab, setActiveTab] = useState<'calendar' | 'services' | 'schedule'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'services' | 'schedule'>(
+    route.params?.initialTab || 'calendar'
+  );
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);

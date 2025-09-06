@@ -29,7 +29,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const upcomingAppointments = appointments
     .filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 2);
+    .slice(0, 5);
 
   const todayAppointments = appointments.filter(apt => {
     const today = new Date().toISOString().split('T')[0];
@@ -150,7 +150,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               <>
                 <TouchableOpacity 
                   style={styles.actionCard}
-                  onPress={() => navigation.navigate('Admin')}
+                  onPress={() => navigation.navigate('Admin', { initialTab: 'schedule' })}
                 >
                   <Ionicons name="calendar-outline" size={32} color={colors.accent.primary} />
                   <Text style={styles.actionTitle}>Schedule</Text>
@@ -183,6 +183,40 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                       styles.statusText,
                       appointment.status === 'confirmed' && styles.statusTextConfirmed,
                       appointment.status === 'scheduled' && styles.statusTextScheduled,
+                    ]}>
+                      {appointment.status}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Today's Appointments */}
+        {todayAppointments.length > 0 && (
+          <View style={styles.appointmentsSection}>
+            <Text style={styles.sectionTitle}>Today's Appointments</Text>
+            {todayAppointments.map((appointment) => (
+              <View key={appointment.id} style={styles.appointmentCard}>
+                <View style={styles.appointmentInfo}>
+                  <Text style={styles.appointmentService}>{appointment.service}</Text>
+                  <Text style={styles.appointmentDate}>
+                    {formatTime(appointment.time)}
+                  </Text>
+                </View>
+                <View style={styles.appointmentStatus}>
+                  <View style={[
+                    styles.statusBadge,
+                    appointment.status === 'confirmed' && styles.statusConfirmed,
+                    appointment.status === 'scheduled' && styles.statusScheduled,
+                    appointment.status === 'completed' && styles.statusCompleted,
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      appointment.status === 'confirmed' && styles.statusTextConfirmed,
+                      appointment.status === 'scheduled' && styles.statusTextScheduled,
+                      appointment.status === 'completed' && styles.statusTextCompleted,
                     ]}>
                       {appointment.status}
                     </Text>
@@ -360,6 +394,9 @@ const styles = StyleSheet.create({
   statusScheduled: {
     backgroundColor: colors.accent.warning,
   },
+  statusCompleted: {
+    backgroundColor: colors.accent.success,
+  },
   statusText: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
@@ -369,6 +406,9 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   statusTextScheduled: {
+    color: colors.white,
+  },
+  statusTextCompleted: {
     color: colors.white,
   },
   barberSection: {

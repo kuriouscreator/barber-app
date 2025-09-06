@@ -70,12 +70,12 @@ export type RootStackParamList = {
   Register: undefined;
   Subscription: undefined;
   Booking: undefined;
-  Admin: undefined;
+  Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
 };
 
 export type MainTabParamList = {
   Home: undefined;
   Book: undefined;
   Profile: undefined;
-  Admin: undefined;
+  Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
 };
