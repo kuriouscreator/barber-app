@@ -92,7 +92,6 @@ const BookScreen: React.FC = () => {
       time: selectedTime,
       service: service.name,
       status: 'scheduled' as const,
-      checkInStatus: 'pending' as const,
     };
 
     bookAppointment(newAppointment);

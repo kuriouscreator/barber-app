@@ -114,12 +114,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>
-                  {appointments.filter(apt => apt.checkInStatus === 'arrived').length}
-                </Text>
-                <Text style={styles.statLabel}>Check-ins</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>
                   {appointments.filter(apt => apt.status === 'completed').length}
                 </Text>
                 <Text style={styles.statLabel}>Completed</Text>
@@ -154,15 +148,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               </>
             ) : (
               <>
-                <TouchableOpacity 
-                  style={styles.actionCard}
-                  onPress={() => navigation.navigate('Admin')}
-                >
-                  <Ionicons name="checkmark-circle-outline" size={32} color={colors.accent.primary} />
-                  <Text style={styles.actionTitle}>Check-ins</Text>
-                  <Text style={styles.actionSubtitle}>Approve arrivals</Text>
-                </TouchableOpacity>
-                
                 <TouchableOpacity 
                   style={styles.actionCard}
                   onPress={() => navigation.navigate('Admin')}

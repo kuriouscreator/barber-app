@@ -122,9 +122,6 @@ interface AppContextType {
   logout: () => void;
   bookAppointment: (appointment: Appointment) => void;
   updateAppointment: (appointment: Appointment) => void;
-  checkIn: (appointmentId: string) => void;
-  approveCheckIn: (appointmentId: string) => void;
-  rejectCheckIn: (appointmentId: string) => void;
   addService: (service: Service) => void;
   updateService: (service: Service) => void;
   deleteService: (serviceId: string) => void;
@@ -157,30 +154,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
   };
 
-  const checkIn = (appointmentId: string) => {
-    const appointment = state.appointments.find(apt => apt.id === appointmentId);
-    if (appointment) {
-      const updatedAppointment = { ...appointment, checkInStatus: 'arrived' as const };
-      dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppointment });
-    }
-  };
-
-  const approveCheckIn = (appointmentId: string) => {
-    const appointment = state.appointments.find(apt => apt.id === appointmentId);
-    if (appointment && state.user) {
-      const updatedAppointment = { ...appointment, checkInStatus: 'approved' as const };
-      dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppointment });
-      dispatch({ type: 'UPDATE_CREDITS', payload: state.user.credits - 1 });
-    }
-  };
-
-  const rejectCheckIn = (appointmentId: string) => {
-    const appointment = state.appointments.find(apt => apt.id === appointmentId);
-    if (appointment) {
-      const updatedAppointment = { ...appointment, checkInStatus: 'rejected' as const };
-      dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppointment });
-    }
-  };
 
   const addService = (service: Service) => {
     dispatch({ type: 'ADD_SERVICE', payload: service });
@@ -245,9 +218,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     logout,
     bookAppointment,
     updateAppointment,
-    checkIn,
-    approveCheckIn,
-    rejectCheckIn,
     addService,
     updateService,
     deleteService,

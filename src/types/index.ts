@@ -27,7 +27,6 @@ export interface Appointment {
   time: string;
   service: string;
   status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
-  checkInStatus: 'pending' | 'arrived' | 'approved' | 'rejected';
   notes?: string;
 }
 
@@ -71,7 +70,6 @@ export type RootStackParamList = {
   Register: undefined;
   Subscription: undefined;
   Booking: undefined;
-  CheckIn: { appointmentId: string };
   Admin: undefined;
 };
 

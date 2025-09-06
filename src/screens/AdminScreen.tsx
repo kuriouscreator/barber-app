@@ -18,40 +18,17 @@ import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 
 const AdminScreen: React.FC = () => {
-  const { state, approveCheckIn, rejectCheckIn, addService, updateService, deleteService, updateAvailability, addScheduleException, updateScheduleException, deleteScheduleException } = useApp();
-  const [activeTab, setActiveTab] = useState<'checkins' | 'calendar' | 'services' | 'schedule'>('checkins');
+  const { state, addService, updateService, deleteService, updateAvailability, addScheduleException, updateScheduleException, deleteScheduleException } = useApp();
+  const [activeTab, setActiveTab] = useState<'calendar' | 'services' | 'schedule'>('calendar');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
 
-  const pendingCheckIns = state.appointments.filter(apt => apt.checkInStatus === 'arrived');
   const todayAppointments = state.appointments.filter(apt => {
     const today = new Date().toISOString().split('T')[0];
     return apt.date === today;
   });
-
-  const handleApproveCheckIn = (appointmentId: string) => {
-    Alert.alert(
-      'Approve Check-in',
-      'Are you sure you want to approve this check-in? This will deduct a credit from the client.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Approve', onPress: () => approveCheckIn(appointmentId) },
-      ]
-    );
-  };
-
-  const handleRejectCheckIn = (appointmentId: string) => {
-    Alert.alert(
-      'Reject Check-in',
-      'Are you sure you want to reject this check-in?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Reject', style: 'destructive', onPress: () => rejectCheckIn(appointmentId) },
-      ]
-    );
-  };
 
   const formatTime = (timeString: string) => {
     return timeString;
@@ -117,33 +94,6 @@ const AdminScreen: React.FC = () => {
     updateScheduleException(exception);
   };
 
-  const renderCheckInCard = (appointment: any) => (
-    <View key={appointment.id} style={styles.checkInCard}>
-      <View style={styles.checkInInfo}>
-        <Text style={styles.clientName}>Client Check-in</Text>
-        <Text style={styles.serviceName}>{appointment.service}</Text>
-        <Text style={styles.appointmentTime}>
-          {new Date(appointment.date).toLocaleDateString()} at {formatTime(appointment.time)}
-        </Text>
-      </View>
-      <View style={styles.checkInActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.approveButton]}
-          onPress={() => handleApproveCheckIn(appointment.id)}
-        >
-          <Ionicons name="checkmark" size={20} color={colors.white} />
-          <Text style={styles.actionButtonText}>Approve</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.rejectButton]}
-          onPress={() => handleRejectCheckIn(appointment.id)}
-        >
-          <Ionicons name="close" size={20} color={colors.white} />
-          <Text style={styles.actionButtonText}>Reject</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   const renderTodayAppointment = (appointment: any) => (
     <View key={appointment.id} style={styles.appointmentCard}>
@@ -155,17 +105,17 @@ const AdminScreen: React.FC = () => {
       </View>
       <View style={[
         styles.statusBadge,
-        appointment.checkInStatus === 'approved' && styles.statusApproved,
-        appointment.checkInStatus === 'arrived' && styles.statusArrived,
-        appointment.checkInStatus === 'pending' && styles.statusPending,
+        appointment.status === 'completed' && styles.statusApproved,
+        appointment.status === 'confirmed' && styles.statusArrived,
+        appointment.status === 'scheduled' && styles.statusPending,
       ]}>
         <Text style={[
           styles.statusText,
-          appointment.checkInStatus === 'approved' && styles.statusTextApproved,
-          appointment.checkInStatus === 'arrived' && styles.statusTextArrived,
-          appointment.checkInStatus === 'pending' && styles.statusTextPending,
+          appointment.status === 'completed' && styles.statusTextApproved,
+          appointment.status === 'confirmed' && styles.statusTextArrived,
+          appointment.status === 'scheduled' && styles.statusTextPending,
         ]}>
-          {appointment.checkInStatus}
+          {appointment.status}
         </Text>
       </View>
     </View>
@@ -181,14 +131,6 @@ const AdminScreen: React.FC = () => {
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'checkins' && styles.activeTab]}
-          onPress={() => setActiveTab('checkins')}
-        >
-          <Text style={[styles.tabText, activeTab === 'checkins' && styles.activeTabText]}>
-            Check-ins
-          </Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'calendar' && styles.activeTab]}
           onPress={() => setActiveTab('calendar')}
@@ -217,24 +159,6 @@ const AdminScreen: React.FC = () => {
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {activeTab === 'checkins' && (
-          <View style={styles.tabContent}>
-            <Text style={styles.sectionTitle}>
-              Pending Check-ins ({pendingCheckIns.length})
-            </Text>
-            {pendingCheckIns.length > 0 ? (
-              pendingCheckIns.map(renderCheckInCard)
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="checkmark-circle-outline" size={48} color={colors.gray[400]} />
-                <Text style={styles.emptyStateText}>No pending check-ins</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  All clients are checked in for today
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
 
         {activeTab === 'calendar' && (
           <View style={styles.tabContent}>
@@ -446,16 +370,6 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.lg,
   },
-  checkInCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    ...shadows.md,
-  },
-  checkInInfo: {
-    marginBottom: spacing.lg,
-  },
   clientName: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
@@ -471,10 +385,6 @@ const styles = StyleSheet.create({
   appointmentTime: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-  },
-  checkInActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
   },
   actionButton: {
     flex: 1,

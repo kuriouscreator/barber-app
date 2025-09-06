@@ -91,10 +91,13 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
         useNativeDriver: true,
       }).start();
 
-      // Auto-scroll to form after a short delay
+      // Auto-scroll to form after a short delay - use a more reliable method
       setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 350);
+        if (scrollViewRef.current) {
+          // Scroll to a large offset to ensure we reach the bottom
+          scrollViewRef.current.scrollTo({ y: 1000, animated: true });
+        }
+      }, 400);
     } else {
       // Animate form disappearance
       Animated.timing(formAnimation, {

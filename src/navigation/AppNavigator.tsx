@@ -16,7 +16,6 @@ import HomeScreen from '../screens/HomeScreen';
 import BookScreen from '../screens/BookScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AdminScreen from '../screens/AdminScreen';
-import CheckInScreen from '../screens/CheckInScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -148,11 +147,6 @@ const AppNavigator = () => {
               name="Subscription" 
               component={SubscriptionScreen} 
               options={{ title: 'Choose Subscription' }}
-            />
-            <Stack.Screen 
-              name="CheckIn" 
-              component={CheckInScreen} 
-              options={{ title: 'Check In' }}
             />
           </>
         )}
