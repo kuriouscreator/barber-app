@@ -13,7 +13,6 @@ import { Service, ScheduleException } from '../types';
 import ServiceEditModal from '../components/ServiceEditModal';
 import ServiceAddModal from '../components/ServiceAddModal';
 import ScheduleManagementModal from '../components/ScheduleManagementModal';
-import DateExceptionModal from '../components/DateExceptionModal';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
@@ -24,10 +23,7 @@ const AdminScreen: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
-  const [exceptionModalVisible, setExceptionModalVisible] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedException, setSelectedException] = useState<ScheduleException | null>(null);
 
   const pendingCheckIns = state.appointments.filter(apt => apt.checkInStatus === 'arrived');
   const todayAppointments = state.appointments.filter(apt => {
@@ -113,43 +109,12 @@ const AdminScreen: React.FC = () => {
     setScheduleModalVisible(false);
   };
 
-  const handleAddException = (date: string) => {
-    console.log('handleAddException called with date:', date);
-    setSelectedDate(date);
-    setSelectedException(null);
-    setExceptionModalVisible(true);
-    console.log('Modal visibility set to true, selectedDate:', date);
+  const handleAddException = (exception: ScheduleException) => {
+    addScheduleException(exception);
   };
 
   const handleEditException = (exception: ScheduleException) => {
-    console.log('handleEditException called with exception:', exception);
-    setSelectedDate(exception.date);
-    setSelectedException(exception);
-    setExceptionModalVisible(true);
-  };
-
-  const handleSaveException = (exception: ScheduleException) => {
-    if (selectedException) {
-      updateScheduleException(exception);
-    } else {
-      addScheduleException(exception);
-    }
-    setExceptionModalVisible(false);
-    setSelectedDate(null);
-    setSelectedException(null);
-  };
-
-  const handleDeleteException = (exceptionId: string) => {
-    deleteScheduleException(exceptionId);
-    setExceptionModalVisible(false);
-    setSelectedDate(null);
-    setSelectedException(null);
-  };
-
-  const handleCloseExceptionModal = () => {
-    setExceptionModalVisible(false);
-    setSelectedDate(null);
-    setSelectedException(null);
+    updateScheduleException(exception);
   };
 
   const renderCheckInCard = (appointment: any) => (
@@ -418,15 +383,6 @@ const AdminScreen: React.FC = () => {
         onSave={handleSaveSchedule}
         onAddException={handleAddException}
         onEditException={handleEditException}
-      />
-      
-      <DateExceptionModal
-        visible={exceptionModalVisible}
-        selectedDate={selectedDate}
-        existingException={selectedException}
-        onClose={handleCloseExceptionModal}
-        onSave={handleSaveException}
-        onDelete={handleDeleteException}
       />
     </View>
   );

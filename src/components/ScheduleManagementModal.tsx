@@ -8,6 +8,7 @@ import {
   ScrollView,
   Switch,
   Alert,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Availability, ScheduleException } from '../types';
@@ -21,7 +22,7 @@ interface ScheduleManagementModalProps {
   scheduleExceptions: ScheduleException[];
   onClose: () => void;
   onSave: (availability: Availability[]) => void;
-  onAddException: (date: string) => void;
+  onAddException: (exception: ScheduleException) => void;
   onEditException: (exception: ScheduleException) => void;
 }
 
@@ -53,6 +54,15 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
   onEditException,
 }) => {
   const [schedule, setSchedule] = useState<Availability[]>([]);
+  const [showExceptionForm, setShowExceptionForm] = useState(false);
+  const [editingException, setEditingException] = useState<ScheduleException | null>(null);
+  const [exceptionFormData, setExceptionFormData] = useState({
+    date: '',
+    startTime: '9:00 AM',
+    endTime: '5:00 PM',
+    isAvailable: true,
+    reason: '',
+  });
 
   useEffect(() => {
     if (visible) {
@@ -84,10 +94,30 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
   };
 
   const handleSave = () => {
+    // Convert 12-hour format to 24-hour for comparison
+    const convertTo24Hour = (time12: string) => {
+      const [time, period] = time12.split(' ');
+      const [hours, minutes] = time.split(':');
+      let hour24 = parseInt(hours);
+      
+      if (period === 'PM' && hour24 !== 12) {
+        hour24 += 12;
+      } else if (period === 'AM' && hour24 === 12) {
+        hour24 = 0;
+      }
+      
+      return `${hour24.toString().padStart(2, '0')}:${minutes}`;
+    };
+
     // Validate that start time is before end time for available days
-    const invalidDays = schedule.filter(day => 
-      day.isAvailable && day.startTime >= day.endTime
-    );
+    const invalidDays = schedule.filter(day => {
+      if (!day.isAvailable) return false;
+      
+      const start24 = convertTo24Hour(day.startTime);
+      const end24 = convertTo24Hour(day.endTime);
+      
+      return start24 >= end24;
+    });
 
     if (invalidDays.length > 0) {
       Alert.alert(
@@ -108,6 +138,121 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const handleAddException = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateString = tomorrow.toISOString().split('T')[0];
+    
+    setExceptionFormData({
+      date: dateString,
+      startTime: '9:00 AM',
+      endTime: '5:00 PM',
+      isAvailable: true,
+      reason: '',
+    });
+    setEditingException(null);
+    setShowExceptionForm(true);
+  };
+
+  const handleEditException = (exception: ScheduleException) => {
+    setExceptionFormData({
+      date: exception.date,
+      startTime: exception.startTime,
+      endTime: exception.endTime,
+      isAvailable: exception.isAvailable,
+      reason: exception.reason || '',
+    });
+    setEditingException(exception);
+    setShowExceptionForm(true);
+  };
+
+  const handleSaveException = () => {
+    // Convert 12-hour format to 24-hour for comparison
+    const convertTo24Hour = (time12: string) => {
+      const [time, period] = time12.split(' ');
+      const [hours, minutes] = time.split(':');
+      let hour24 = parseInt(hours);
+      
+      if (period === 'PM' && hour24 !== 12) {
+        hour24 += 12;
+      } else if (period === 'AM' && hour24 === 12) {
+        hour24 = 0;
+      }
+      
+      return `${hour24.toString().padStart(2, '0')}:${minutes}`;
+    };
+
+    if (exceptionFormData.isAvailable) {
+      const start24 = convertTo24Hour(exceptionFormData.startTime);
+      const end24 = convertTo24Hour(exceptionFormData.endTime);
+      
+      if (start24 >= end24) {
+        Alert.alert('Invalid Time', 'Start time must be before end time.');
+        return;
+      }
+    }
+
+    const exception: ScheduleException = {
+      id: editingException?.id || Date.now().toString(),
+      date: exceptionFormData.date,
+      startTime: exceptionFormData.startTime,
+      endTime: exceptionFormData.endTime,
+      isAvailable: exceptionFormData.isAvailable,
+      reason: exceptionFormData.reason.trim() || undefined,
+    };
+
+    if (editingException) {
+      onEditException(exception);
+    } else {
+      onAddException(exception);
+    }
+
+    setShowExceptionForm(false);
+    setEditingException(null);
+  };
+
+  const handleCancelException = () => {
+    setShowExceptionForm(false);
+    setEditingException(null);
+  };
+
+  const renderExceptionTimePicker = (field: 'startTime' | 'endTime', currentTime: string) => {
+    return (
+      <View style={styles.timePickerContainer}>
+        <Text style={styles.timePickerLabel}>
+          {field === 'startTime' ? 'Start Time' : 'End Time'}
+        </Text>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.timePicker}
+        >
+          {TIME_SLOTS.map((time) => (
+            <TouchableOpacity
+              key={time}
+              style={[
+                styles.timeSlot,
+                time === currentTime && styles.timeSlotSelected,
+                !exceptionFormData.isAvailable && styles.timeSlotDisabled,
+              ]}
+              onPress={() => setExceptionFormData(prev => ({ ...prev, [field]: time }))}
+              disabled={!exceptionFormData.isAvailable}
+            >
+              <Text style={[
+                styles.timeSlotText,
+                time === currentTime && styles.timeSlotTextSelected,
+                !exceptionFormData.isAvailable && styles.timeSlotTextDisabled,
+              ]}>
+                {time}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
   };
 
   const getDaySchedule = (dayOfWeek: number) => {
@@ -227,17 +372,7 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
             
             <TouchableOpacity
               style={styles.addExceptionButton}
-              onPress={() => {
-                console.log('Add Exception button pressed');
-                // For now, we'll use a simple date picker approach
-                // In a real app, you'd want a proper date picker
-                const today = new Date();
-                const tomorrow = new Date(today);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                const dateString = tomorrow.toISOString().split('T')[0];
-                console.log('Calling onAddException with date:', dateString);
-                onAddException(dateString);
-              }}
+              onPress={handleAddException}
             >
               <Ionicons name="add-circle-outline" size={20} color={colors.accent.primary} />
               <Text style={styles.addExceptionText}>Add Exception</Text>
@@ -249,10 +384,7 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
                   <TouchableOpacity
                     key={exception.id}
                     style={styles.exceptionItem}
-                    onPress={() => {
-                      console.log('Exception item pressed:', exception);
-                      onEditException(exception);
-                    }}
+                    onPress={() => handleEditException(exception)}
                   >
                     <View style={styles.exceptionInfo}>
                       <Text style={styles.exceptionDate}>
@@ -283,6 +415,77 @@ const ScheduleManagementModal: React.FC<ScheduleManagementModalProps> = ({
               </View>
             )}
           </View>
+
+          {/* Inline Exception Form */}
+          {showExceptionForm && (
+            <View style={styles.exceptionFormContainer}>
+              <View style={styles.exceptionFormHeader}>
+                <Text style={styles.exceptionFormTitle}>
+                  {editingException ? 'Edit Exception' : 'Add Exception'}
+                </Text>
+                <TouchableOpacity onPress={handleCancelException}>
+                  <Ionicons name="close" size={24} color={colors.text.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.exceptionForm}>
+                <View style={styles.dateDisplay}>
+                  <Ionicons name="calendar-outline" size={20} color={colors.accent.primary} />
+                  <Text style={styles.dateDisplayText}>
+                    {exceptionFormData.date ? formatExceptionDate(exceptionFormData.date) : 'Select a date'}
+                  </Text>
+                </View>
+
+                <View style={styles.availabilityToggle}>
+                  <Text style={styles.availabilityLabel}>Available on this date</Text>
+                  <Switch
+                    value={exceptionFormData.isAvailable}
+                    onValueChange={(value) => setExceptionFormData(prev => ({ ...prev, isAvailable: value }))}
+                    trackColor={{ false: colors.gray[300], true: colors.accent.primary }}
+                    thumbColor={colors.white}
+                  />
+                </View>
+
+                {exceptionFormData.isAvailable && (
+                  <View style={styles.exceptionTimePickers}>
+                    {renderExceptionTimePicker('startTime', exceptionFormData.startTime)}
+                    {renderExceptionTimePicker('endTime', exceptionFormData.endTime)}
+                  </View>
+                )}
+
+                <View style={styles.reasonInput}>
+                  <Text style={styles.reasonLabel}>Reason (Optional)</Text>
+                  <TextInput
+                    style={styles.reasonTextInput}
+                    value={exceptionFormData.reason}
+                    onChangeText={(value) => setExceptionFormData(prev => ({ ...prev, reason: value }))}
+                    placeholder="e.g., Holiday, Personal appointment, etc."
+                    placeholderTextColor={colors.gray[400]}
+                    multiline
+                    numberOfLines={2}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View style={styles.exceptionFormButtons}>
+                  <TouchableOpacity
+                    style={styles.cancelExceptionButton}
+                    onPress={handleCancelException}
+                  >
+                    <Text style={styles.cancelExceptionButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.saveExceptionButton}
+                    onPress={handleSaveException}
+                  >
+                    <Text style={styles.saveExceptionButtonText}>
+                      {editingException ? 'Update Exception' : 'Add Exception'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -544,6 +747,105 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
+  },
+  exceptionFormContainer: {
+    backgroundColor: colors.white,
+    margin: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  exceptionFormHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomColor: colors.border.light,
+    borderBottomWidth: 1,
+  },
+  exceptionFormTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  exceptionForm: {
+    padding: spacing.lg,
+  },
+  dateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  dateDisplayText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginLeft: spacing.sm,
+  },
+  availabilityToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  availabilityLabel: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+  exceptionTimePickers: {
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  reasonInput: {
+    marginBottom: spacing.lg,
+  },
+  reasonLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  reasonTextInput: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    minHeight: 60,
+  },
+  exceptionFormButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  cancelExceptionButton: {
+    flex: 1,
+    padding: spacing.md,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  cancelExceptionButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+  },
+  saveExceptionButton: {
+    flex: 1,
+    padding: spacing.md,
+    backgroundColor: colors.black,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  saveExceptionButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.white,
   },
 });
 
