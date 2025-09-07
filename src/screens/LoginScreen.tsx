@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { useApp } from '../context/AppContext';
@@ -91,13 +92,19 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           </View>
 
           <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>
-              {isLoading ? 'Signing In...' : 'Sign In'}
-            </Text>
+            <LinearGradient 
+              start={{x:0, y:0}}
+              end={{x:0, y:1}}
+              colors={isLoading ? ["#CBD5E1", "#94A3B8"] : ["#000080", "#1D4ED8"]}
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+            >
+              <Text style={styles.buttonText}>
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
@@ -171,8 +178,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.primary,
   },
   button: {
-    backgroundColor: colors.black,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     paddingVertical: spacing.md,
     alignItems: 'center',
     marginTop: spacing.lg,

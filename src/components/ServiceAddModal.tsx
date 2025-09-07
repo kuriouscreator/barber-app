@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Service } from '../types';
 import { colors } from '../theme/colors';
@@ -186,10 +187,16 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.saveButton}
               onPress={handleSave}
             >
-              <Text style={styles.saveButtonText}>Add Service</Text>
+              <LinearGradient 
+                start={{x:0, y:0}}
+                end={{x:0, y:1}}
+                colors={["#000080", "#1D4ED8"]}
+                style={styles.saveButton}
+              >
+                <Text style={styles.saveButtonText}>Add Service</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -279,7 +286,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.md,
     backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -290,8 +297,7 @@ const styles = StyleSheet.create({
   saveButton: {
     flex: 1,
     padding: spacing.md,
-    backgroundColor: colors.black,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     alignItems: 'center',
   },
   saveButtonText: {

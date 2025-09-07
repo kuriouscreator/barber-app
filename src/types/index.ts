@@ -28,6 +28,8 @@ export interface Appointment {
   service: string;
   status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
   notes?: string;
+  creditUsed?: boolean; // Track if a credit was used for this appointment
+  rating?: number | null; // Rating given by the user (1-5 stars)
 }
 
 export interface Barber {
@@ -75,7 +77,18 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  Book: undefined;
+  Book: { rescheduleAppointment?: RescheduleAppointment; rebookAppointment?: RescheduleAppointment } | undefined;
+  Appointments: undefined;
   Profile: undefined;
   Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
 };
+
+export interface RescheduleAppointment {
+  id: string;
+  shopName: string;
+  service: string;
+  currentDate: string;
+  currentTime: string;
+  location: string;
+  barberAvatar: string;
+}

@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types';
@@ -58,41 +59,96 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
   const renderPlanCard = (plan: typeof mockSubscriptions[0]) => {
     const isSelected = selectedPlan === plan.id;
     
+    if (isSelected) {
+      return (
+        <TouchableOpacity
+          key={plan.id}
+          onPress={() => handleSelectPlan(plan.id)}
+        >
+          <LinearGradient 
+            start={{x:0, y:0}}
+            end={{x:0, y:1}}
+            colors={["#000080", "#1D4ED8"]}
+            style={styles.planCard}
+          >
+            <View style={styles.planHeader}>
+              <Text style={styles.planNameSelected}>
+                {plan.name}
+              </Text>
+              <Text style={styles.planPriceSelected}>
+                ${plan.price}
+              </Text>
+            </View>
+            
+            <Text style={styles.planDurationSelected}>
+              per {plan.duration}
+            </Text>
+            
+            <Text style={styles.planDescriptionSelected}>
+              {plan.description}
+            </Text>
+            
+            <View style={styles.planFeatures}>
+              <View style={styles.feature}>
+                <Ionicons 
+                  name="checkmark-circle" 
+                  size={16} 
+                  color={colors.white} 
+                />
+                <Text style={styles.featureTextSelected}>
+                  {plan.credits} haircut{plan.credits > 1 ? 's' : ''} included
+                </Text>
+              </View>
+              <View style={styles.feature}>
+                <Ionicons 
+                  name="checkmark-circle" 
+                  size={16} 
+                  color={colors.white} 
+                />
+                <Text style={styles.featureTextSelected}>
+                  Priority booking
+                </Text>
+              </View>
+              <View style={styles.feature}>
+                <Ionicons 
+                  name="checkmark-circle" 
+                  size={16} 
+                  color={colors.white} 
+                />
+                <Text style={styles.featureTextSelected}>
+                  Easy check-in
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.selectedIndicator}>
+              <Ionicons name="checkmark" size={20} color={colors.white} />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      );
+    }
+    
     return (
       <TouchableOpacity
         key={plan.id}
-        style={[
-          styles.planCard,
-          isSelected && styles.selectedPlanCard,
-        ]}
+        style={styles.planCard}
         onPress={() => handleSelectPlan(plan.id)}
       >
         <View style={styles.planHeader}>
-          <Text style={[
-            styles.planName,
-            isSelected && styles.selectedPlanName,
-          ]}>
+          <Text style={styles.planName}>
             {plan.name}
           </Text>
-          <Text style={[
-            styles.planPrice,
-            isSelected && styles.selectedPlanPrice,
-          ]}>
+          <Text style={styles.planPrice}>
             ${plan.price}
           </Text>
         </View>
         
-        <Text style={[
-          styles.planDuration,
-          isSelected && styles.selectedPlanDuration,
-        ]}>
+        <Text style={styles.planDuration}>
           per {plan.duration}
         </Text>
         
-        <Text style={[
-          styles.planDescription,
-          isSelected && styles.selectedPlanDescription,
-        ]}>
+        <Text style={styles.planDescription}>
           {plan.description}
         </Text>
         
@@ -101,12 +157,9 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons 
               name="checkmark-circle" 
               size={16} 
-              color={isSelected ? colors.white : colors.accent.success} 
+              color={colors.accent.success} 
             />
-            <Text style={[
-              styles.featureText,
-              isSelected && styles.selectedFeatureText,
-            ]}>
+            <Text style={styles.featureText}>
               {plan.credits} haircut{plan.credits > 1 ? 's' : ''} included
             </Text>
           </View>
@@ -114,12 +167,9 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons 
               name="checkmark-circle" 
               size={16} 
-              color={isSelected ? colors.white : colors.accent.success} 
+              color={colors.accent.success} 
             />
-            <Text style={[
-              styles.featureText,
-              isSelected && styles.selectedFeatureText,
-            ]}>
+            <Text style={styles.featureText}>
               Priority booking
             </Text>
           </View>
@@ -127,22 +177,13 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons 
               name="checkmark-circle" 
               size={16} 
-              color={isSelected ? colors.white : colors.accent.success} 
+              color={colors.accent.success} 
             />
-            <Text style={[
-              styles.featureText,
-              isSelected && styles.selectedFeatureText,
-            ]}>
+            <Text style={styles.featureText}>
               Easy check-in
             </Text>
           </View>
         </View>
-        
-        {isSelected && (
-          <View style={styles.selectedIndicator}>
-            <Ionicons name="checkmark" size={20} color={colors.black} />
-          </View>
-        )}
       </TouchableOpacity>
     );
   };
@@ -238,6 +279,32 @@ const styles = StyleSheet.create({
   },
   selectedPlanName: {
     color: colors.white,
+  },
+  planNameSelected: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  planPriceSelected: {
+    fontSize: typography.fontSize['2xl'],
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  planDurationSelected: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    marginBottom: spacing.sm,
+  },
+  planDescriptionSelected: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
+  featureTextSelected: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    marginLeft: spacing.xs,
   },
   planPrice: {
     fontSize: typography.fontSize['2xl'],

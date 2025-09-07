@@ -19,7 +19,8 @@ export const colors = {
   
   // Accent colors
   accent: {
-    primary: '#3B82F6', // Cool blue
+    primary: '#000080', // Navy blue (gradient start)
+    primaryLight: '#1D4ED8', // Blue (gradient end)
     secondary: '#6366F1', // Indigo
     success: '#10B981', // Emerald
     warning: '#F59E0B', // Amber
