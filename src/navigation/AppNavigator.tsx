@@ -18,6 +18,7 @@ import BookScreen from '../screens/BookScreen';
 import AppointmentsScreen from '../screens/AppointmentsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AdminScreen from '../screens/AdminScreen';
+import BarberProfileScreen from '../screens/BarberProfileScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -189,6 +190,11 @@ const AppNavigator = () => {
               name="Subscription" 
               component={SubscriptionScreen} 
               options={{ title: 'Choose Subscription' }}
+            />
+            <Stack.Screen 
+              name="BarberProfile" 
+              component={BarberProfileScreen} 
+              options={{ headerShown: false }}
             />
           </>
         )}

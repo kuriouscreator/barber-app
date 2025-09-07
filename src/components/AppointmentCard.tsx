@@ -26,7 +26,11 @@ export interface AppointmentCardProps {
   onCancel?: (id: string) => void;
   onReview?: (id: string) => void;
   onRebook?: (id: string) => void;
+  onViewBarberProfile?: (barberId: string, barberName: string, barberAvatar: string, barberRating: number, barberReviewCount: number) => void;
   showReviewButton?: boolean;
+  barberId?: string;
+  barberRating?: number;
+  barberReviewCount?: number;
 }
 
 const AppointmentCard: React.FC<AppointmentCardProps> = ({
@@ -43,7 +47,11 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onCancel,
   onReview,
   onRebook,
+  onViewBarberProfile,
   showReviewButton = true,
+  barberId,
+  barberRating = 4.8,
+  barberReviewCount = 127,
 }) => {
   // Function to render star rating
   const renderStars = (rating: number) => {
@@ -63,7 +71,16 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
       <View style={styles.appointmentTopRow}>
         <Image source={{ uri: barberPhoto }} style={styles.barberPhoto} />
         <View style={styles.appointmentInfo}>
-          <Text style={styles.barberName} numberOfLines={1}>{barberName}</Text>
+          <TouchableOpacity 
+            onPress={() => onViewBarberProfile?.(barberId || '1', barberName, barberPhoto, barberRating, barberReviewCount)}
+            style={styles.barberNameContainer}
+          >
+            <Text style={styles.barberName} numberOfLines={1}>{barberName}</Text>
+            <View style={styles.barberRatingContainer}>
+              <Ionicons name="star" size={12} color="#FFD700" />
+              <Text style={styles.barberRatingText}>{barberRating.toFixed(1)}</Text>
+            </View>
+          </TouchableOpacity>
           <Text style={styles.serviceName}>{service}</Text>
           <View style={styles.appointmentLocation}>
             <Ionicons name="location-outline" size={14} color={colors.text.secondary} />
@@ -149,7 +166,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
 const styles = StyleSheet.create({
   appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -178,11 +195,27 @@ const styles = StyleSheet.create({
   appointmentInfo: {
     flex: 1,
   },
+  barberNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   barberName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 4,
+    flex: 1,
+  },
+  barberRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  barberRatingText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text.secondary,
   },
   serviceName: {
     fontSize: 14,
@@ -219,7 +252,7 @@ const styles = StyleSheet.create({
   },
   appointmentDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     marginHorizontal: 17,
     marginVertical: 12,
   },

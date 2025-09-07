@@ -37,10 +37,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   // Mock data for the new design
   const profileData = {
-    name: 'Alex Johnson',
-    memberSince: 'December 2023',
-    location: 'New York, NY',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
     subscription: {
       planName: 'Premium Plan',
       price: '$79/month',
@@ -188,16 +184,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Profile Card */}
-          <View style={styles.profileCard}>
-            <Image source={{ uri: profileData.avatar }} style={styles.avatar} />
-            <Text style={styles.profileName}>{profileData.name}</Text>
-            <Text style={styles.memberSince}>Member since {profileData.memberSince}</Text>
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={16} color={colors.text.secondary} />
-              <Text style={styles.locationText}>{profileData.location}</Text>
-            </View>
-          </View>
 
           {/* Current Subscription */}
           <View style={styles.section}>
@@ -446,52 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Profile Card
-  profileCard: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 25,
-    marginBottom: 24,
-    marginHorizontal: 16,
-    shadowColor: '#0000000D',
-    shadowOpacity: 0.1,
-    shadowOffset: {
-      width: 0,
-      height: 1
-    },
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  avatar: {
-    borderRadius: 40,
-    width: 80,
-    height: 80,
-    marginBottom: 16,
-  },
-  profileName: {
-    color: '#111827',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  memberSince: {
-    color: '#4B5563',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  locationText: {
-    color: '#4B5563',
-    fontSize: 14,
-    marginLeft: 4,
-  },
 
   // Subscription Card
   subscriptionCard: {
@@ -572,29 +512,38 @@ const styles = StyleSheet.create({
   actionTile: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#FEFCE8',
-    borderColor: '#FEF08A',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.border.light,
+    borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 14,
     paddingHorizontal: 13,
+    shadowColor: '#0000000D',
+    shadowOpacity: 0.1,
+    shadowOffset: {
+      width: 0,
+      height: 1
+    },
+    shadowRadius: 2,
+    elevation: 2,
   },
   actionTileTitle: {
     fontSize: 14,
-    color: '#A16207',
+    color: colors.text.primary,
     marginTop: 8,
     marginBottom: 4,
+    fontWeight: typography.fontWeight.medium,
   },
   actionTileSubtitle: {
     fontSize: 12,
-    color: '#CA8A04',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
 
   // Usage Progress
   usageCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -622,7 +571,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     borderRadius: 9999,
     marginBottom: 16,
     marginHorizontal: 17,
@@ -642,7 +591,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginHorizontal: 17,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.border.light,
   },
   usageItemLast: {
     borderBottomWidth: 0,
@@ -668,7 +617,7 @@ const styles = StyleSheet.create({
   // Appointment Cards
   appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -684,7 +633,7 @@ const styles = StyleSheet.create({
   },
   pastAppointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -791,7 +740,7 @@ const styles = StyleSheet.create({
   },
   appointmentDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     marginHorizontal: 17,
     marginVertical: 12,
   },
@@ -867,7 +816,7 @@ const styles = StyleSheet.create({
   // Payment & Billing
   paymentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -924,7 +873,7 @@ const styles = StyleSheet.create({
   },
   paymentDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     marginHorizontal: 17,
     marginVertical: 16,
   },
@@ -950,7 +899,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -985,7 +934,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 12,
     borderWidth: 1,
     paddingVertical: 17,

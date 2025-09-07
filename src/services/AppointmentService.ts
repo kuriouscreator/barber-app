@@ -1,10 +1,17 @@
 import { Alert } from 'react-native';
-import { Appointment, User } from '../types';
+import { Appointment, User, Review } from '../types';
 
 export class AppointmentService {
   // Mock data storage - in a real app, this would be API calls
   private static appointments: Appointment[] = [];
   private static users: { [key: string]: User } = {};
+  private static barbers: { [key: string]: any } = {
+    'barber-1': {
+      id: 'barber-1',
+      name: "Mike's Barbershop",
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    }
+  };
 
   // Initialize with mock data
   static initialize() {
@@ -236,5 +243,78 @@ export class AppointmentService {
 
       resolve(newAppointment.id);
     });
+  }
+
+  // Submit a review for an appointment
+  static submitReview(appointmentId: string, reviewData: {
+    rating: number;
+    text: string;
+    photos: string[];
+  }): boolean {
+    const appointment = this.appointments.find(apt => apt.id === appointmentId);
+    if (!appointment) {
+      console.error('Appointment not found:', appointmentId);
+      return false;
+    }
+
+    if (appointment.status !== 'completed') {
+      console.error('Can only review completed appointments');
+      return false;
+    }
+
+    const user = this.users[appointment.userId];
+    if (!user) {
+      console.error('User not found:', appointment.userId);
+      return false;
+    }
+
+    const review: Review = {
+      id: `review-${Date.now()}`,
+      appointmentId: appointment.id,
+      customerId: appointment.userId,
+      customerName: user.name,
+      barberId: appointment.barberId,
+      rating: reviewData.rating,
+      text: reviewData.text,
+      photos: reviewData.photos,
+      date: new Date().toISOString().split('T')[0],
+      service: appointment.service,
+    };
+
+    // Update appointment with review
+    appointment.review = review;
+    appointment.rating = reviewData.rating;
+
+    console.log('Review submitted:', review);
+    return true;
+  }
+
+  // Get reviews for a specific barber
+  static getBarberReviews(barberId: string): Review[] {
+    return this.appointments
+      .filter(apt => apt.barberId === barberId && apt.review)
+      .map(apt => apt.review!)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  // Get barber rating and review count
+  static getBarberStats(barberId: string): { rating: number; reviewCount: number } {
+    const reviews = this.getBarberReviews(barberId);
+    if (reviews.length === 0) {
+      return { rating: 0, reviewCount: 0 };
+    }
+
+    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const averageRating = totalRating / reviews.length;
+
+    return {
+      rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+      reviewCount: reviews.length,
+    };
+  }
+
+  // Get barber information by ID
+  static getBarberInfo(barberId: string): { id: string; name: string; avatar: string } | null {
+    return this.barbers[barberId] || null;
   }
 }

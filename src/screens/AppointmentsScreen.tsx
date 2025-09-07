@@ -9,17 +9,19 @@ import {
   Alert,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MainTabParamList } from '../types';
+import { MainTabParamList, RootStackParamList } from '../types';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 import { useApp } from '../context/AppContext';
 import { AppointmentService } from '../services/AppointmentService';
 import AppointmentCard from '../components/AppointmentCard';
+import ReviewModal from '../components/ReviewModal';
 
-type AppointmentsScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Appointments'>;
+type AppointmentsScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Appointments'> & StackNavigationProp<RootStackParamList>;
 
 interface Props {
   navigation: AppointmentsScreenNavigationProp;
@@ -55,32 +57,37 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const [pastAppointments, setPastAppointments] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedAppointmentForReview, setSelectedAppointmentForReview] = useState<any>(null);
 
-  useEffect(() => {
-    // Initialize the appointment service
-    AppointmentService.initialize();
-    
-    // Load user's appointments
+  const loadAppointments = () => {
     if (user?.id) {
       const upcoming = AppointmentService.getUpcomingAppointments(user.id);
       const past = AppointmentService.getPastAppointments(user.id);
       setUpcomingAppointments(upcoming);
       setPastAppointments(past);
     }
+  };
+
+  useEffect(() => {
+    // Initialize the appointment service
+    AppointmentService.initialize();
+    loadAppointments();
   }, [user?.id]);
 
   const handleReschedule = (appointmentId: string) => {
     const appointment = upcomingAppointments.find(apt => apt.id === appointmentId);
     if (appointment) {
+      const barberInfo = AppointmentService.getBarberInfo(appointment.barberId);
       navigation.navigate('Book', {
         rescheduleAppointment: {
           id: appointmentId,
-          shopName: "Mike's Barbershop",
+          shopName: barberInfo?.name || "Unknown Barber",
           service: appointment.service,
           currentDate: appointment.date,
           currentTime: appointment.time,
           location: 'Downtown Plaza',
-          barberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+          barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
       });
     }
@@ -119,39 +126,96 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const handleRebook = (appointmentId: string) => {
     const appointment = pastAppointments.find(apt => apt.id === appointmentId);
     if (appointment) {
+      const barberInfo = AppointmentService.getBarberInfo(appointment.barberId);
       navigation.navigate('Book', {
         rebookAppointment: {
           id: appointmentId,
-          shopName: "Mike's Barbershop",
+          shopName: barberInfo?.name || "Unknown Barber",
           service: appointment.service,
           currentDate: appointment.date,
           currentTime: appointment.time,
           location: 'Downtown Plaza',
-          barberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+          barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
       });
     }
   };
 
-  const renderAppointmentCard = (appointment: any, isUpcoming: boolean) => (
-    <AppointmentCard
-      key={appointment.id}
-      id={appointment.id}
-      barberName="Mike's Barbershop"
-      service={appointment.service}
-      date={formatAppointmentDate(appointment.date)}
-      time={appointment.time}
-      location="Downtown Plaza"
-      barberPhoto="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face"
-      isUpcoming={isUpcoming}
-      rating={appointment.rating}
-      onReschedule={handleReschedule}
-      onCancel={handleCancel}
-      onReview={(id) => console.log('Review appointment:', id)}
-      onRebook={handleRebook}
-      showReviewButton={!appointment.rating} // Show review button only if not rated yet
-    />
-  );
+  const handleReview = (appointmentId: string) => {
+    const appointment = pastAppointments.find(apt => apt.id === appointmentId);
+    if (appointment) {
+      setSelectedAppointmentForReview(appointment);
+      setReviewModalVisible(true);
+    }
+  };
+
+  const handleSubmitReview = (reviewData: { rating: number; text: string; photos: string[] }) => {
+    if (selectedAppointmentForReview) {
+      const success = AppointmentService.submitReview(selectedAppointmentForReview.id, reviewData);
+      if (success) {
+        // Get updated barber stats after review submission
+        const barberStats = AppointmentService.getBarberStats(selectedAppointmentForReview.barberId);
+        
+        // Get barber info for navigation
+        const barberInfo = AppointmentService.getBarberInfo(selectedAppointmentForReview.barberId);
+        
+        // Navigate to barber profile with updated stats
+        navigation.navigate('BarberProfile', {
+          barberId: selectedAppointmentForReview.barberId,
+          barberName: barberInfo?.name || "Unknown Barber",
+          barberAvatar: barberInfo?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
+          barberRating: barberStats.rating,
+          barberReviewCount: barberStats.reviewCount,
+        });
+        
+        // Refresh appointments to show the updated review
+        loadAppointments();
+      } else {
+        Alert.alert('Error', 'Failed to submit review. Please try again.');
+      }
+    }
+    setReviewModalVisible(false);
+    setSelectedAppointmentForReview(null);
+  };
+
+  const handleViewBarberProfile = (barberId: string, barberName: string, barberAvatar: string, barberRating: number, barberReviewCount: number) => {
+    navigation.navigate('BarberProfile', {
+      barberId,
+      barberName,
+      barberAvatar,
+      barberRating,
+      barberReviewCount,
+    });
+  };
+
+  const renderAppointmentCard = (appointment: any, isUpcoming: boolean) => {
+    const barberInfo = AppointmentService.getBarberInfo(appointment.barberId);
+    const barberStats = AppointmentService.getBarberStats(appointment.barberId);
+    
+    return (
+      <AppointmentCard
+        key={appointment.id}
+        id={appointment.id}
+        barberName={barberInfo?.name || "Unknown Barber"}
+        service={appointment.service}
+        date={formatAppointmentDate(appointment.date)}
+        time={appointment.time}
+        location="Downtown Plaza"
+        barberPhoto={barberInfo?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face"}
+        isUpcoming={isUpcoming}
+        rating={appointment.rating}
+        onReschedule={handleReschedule}
+        onCancel={handleCancel}
+        onReview={handleReview}
+        onRebook={handleRebook}
+        onViewBarberProfile={handleViewBarberProfile}
+        showReviewButton={!appointment.rating} // Show review button only if not rated yet
+        barberId={appointment.barberId}
+        barberRating={barberStats.rating}
+        barberReviewCount={barberStats.reviewCount}
+      />
+    );
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -196,6 +260,18 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           )
         )}
       </View>
+
+      {/* Review Modal */}
+      <ReviewModal
+        visible={reviewModalVisible}
+        onClose={() => {
+          setReviewModalVisible(false);
+          setSelectedAppointmentForReview(null);
+        }}
+        onSubmit={handleSubmitReview}
+        barberName={selectedAppointmentForReview ? AppointmentService.getBarberInfo(selectedAppointmentForReview.barberId)?.name || "Unknown Barber" : "Unknown Barber"}
+        serviceName={selectedAppointmentForReview?.service || ''}
+      />
     </ScrollView>
   );
 };
@@ -240,7 +316,7 @@ const styles = StyleSheet.create({
   // Appointment Cards
   appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -305,7 +381,7 @@ const styles = StyleSheet.create({
   },
   appointmentDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     marginHorizontal: 17,
     marginVertical: 12,
   },

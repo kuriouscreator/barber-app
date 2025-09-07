@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: colors.border.medium,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     fontSize: typography.fontSize.base,

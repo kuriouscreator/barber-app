@@ -19,6 +19,19 @@ export interface Subscription {
   description: string;
 }
 
+export interface Review {
+  id: string;
+  appointmentId: string;
+  customerId: string;
+  customerName: string;
+  barberId: string;
+  rating: number;
+  text: string;
+  photos: string[];
+  date: string;
+  service: string;
+}
+
 export interface Appointment {
   id: string;
   userId: string;
@@ -30,6 +43,7 @@ export interface Appointment {
   notes?: string;
   creditUsed?: boolean; // Track if a credit was used for this appointment
   rating?: number | null; // Rating given by the user (1-5 stars)
+  review?: Review; // Full review object if user has reviewed
 }
 
 export interface Barber {
@@ -73,6 +87,13 @@ export type RootStackParamList = {
   Subscription: undefined;
   Booking: undefined;
   Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
+  BarberProfile: {
+    barberId: string;
+    barberName: string;
+    barberAvatar: string;
+    barberRating: number;
+    barberReviewCount: number;
+  };
 };
 
 export type MainTabParamList = {
@@ -81,6 +102,13 @@ export type MainTabParamList = {
   Appointments: undefined;
   Profile: undefined;
   Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
+  BarberProfile: {
+    barberId: string;
+    barberName: string;
+    barberAvatar: string;
+    barberRating: number;
+    barberReviewCount: number;
+  };
 };
 
 export interface RescheduleAppointment {

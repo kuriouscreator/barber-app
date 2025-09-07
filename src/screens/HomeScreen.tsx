@@ -224,7 +224,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             />
           ))}
         </View>
-
       </View>
     </ScrollView>
   );
@@ -243,7 +242,7 @@ const styles = StyleSheet.create({
   // Subscription card styles
   subscriptionCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -351,7 +350,7 @@ const styles = StyleSheet.create({
   },
   appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -406,7 +405,7 @@ const styles = StyleSheet.create({
   },
   appointmentDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     marginHorizontal: 17,
     marginVertical: 12,
   },
@@ -470,7 +469,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     padding: 20,

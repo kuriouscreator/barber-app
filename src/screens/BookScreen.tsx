@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
   // Barber Info Card
   barberInfoCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     padding: spacing.lg,
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
   // Service Cards
   serviceCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     padding: spacing.lg,
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   },
   datePill: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: spacing.lg,
@@ -1020,12 +1020,20 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   timeChip: {
-    backgroundColor: colors.gray[100],
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.border.light,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.light,
+    shadowColor: '#0000000D',
+    shadowOpacity: 0.1,
+    shadowOffset: {
+      width: 0,
+      height: 1
+    },
+    shadowRadius: 2,
+    elevation: 2,
   },
   timeChipText: {
     fontSize: typography.fontSize.sm,
@@ -1060,7 +1068,7 @@ const styles = StyleSheet.create({
   // Booking Summary
   summaryCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 17,
@@ -1097,7 +1105,7 @@ const styles = StyleSheet.create({
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border.light,
     marginHorizontal: 17,
     marginVertical: 12,
   },
@@ -1207,7 +1215,7 @@ const styles = StyleSheet.create({
   // Special Requests
   requestsInput: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: borderRadius.button,
     borderWidth: 1,
     padding: spacing.md,
@@ -1232,7 +1240,7 @@ const styles = StyleSheet.create({
   },
   requestTag: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    borderColor: colors.border.light,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     paddingHorizontal: spacing.md,
