@@ -108,15 +108,23 @@ The app runs in **demo mode** with realistic mock data. Here's how to test all f
 - Tap **"Book Appointment"** on the Home screen
 - **Select a service** (Classic Haircut, Beard Trim, etc.)
 - **Choose a date** (next 14 days available)
-- **Pick a time slot**
-- **Confirm your booking**
+- **Pick a time slot** (auto-scrolls to next section)
+- **Add special requests** (optional)
+- **Confirm your booking** (automatically navigates to Appointments tab)
 
-### 4. Test Check-in Feature
+### 4. Manage Appointments
+- **View Appointments Tab** - See upcoming and past appointments
+- **Reschedule** - Change date/time of upcoming appointments
+- **Cancel** - Cancel appointments with automatic credit restoration
+- **Review** - Rate and review past appointments
+- **Rebook** - Quick rebook from past appointments
+
+### 5. Test Check-in Feature
 - After booking, you can test the check-in process
 - Tap **"I've arrived"** when at the barbershop
 - Wait for barber approval
 
-### 5. Admin Features
+### 6. Admin Features
 - Switch to the **Admin tab**
 - View **pending check-ins**
 - **Approve or reject** client check-ins
@@ -128,7 +136,11 @@ The app runs in **demo mode** with realistic mock data. Here's how to test all f
 barber-app/
 ├── src/
 │   ├── components/          # Reusable UI components
-│   │   └── PaymentButton.tsx
+│   │   ├── AppointmentCard.tsx      # Reusable appointment display
+│   │   ├── PaymentButton.tsx        # Payment processing component
+│   │   ├── ScheduleManagementModal.tsx
+│   │   ├── ServiceAddModal.tsx
+│   │   └── ServiceEditModal.tsx
 │   ├── context/            # React Context for state management
 │   │   └── AppContext.tsx
 │   ├── data/               # Mock data and constants
@@ -136,23 +148,25 @@ barber-app/
 │   ├── navigation/         # Navigation configuration
 │   │   └── AppNavigator.tsx
 │   ├── screens/            # App screens
-│   │   ├── LoginScreen.tsx
-│   │   ├── RegisterScreen.tsx
-│   │   ├── HomeScreen.tsx
-│   │   ├── BookScreen.tsx
-│   │   ├── ProfileScreen.tsx
-│   │   ├── AdminScreen.tsx
-│   │   ├── SubscriptionScreen.tsx
-│   │   └── CheckInScreen.tsx
-│   ├── services/           # External services
-│   │   └── PaymentService.ts
+│   │   ├── LoginScreen.tsx         # Authentication
+│   │   ├── RegisterScreen.tsx      # User registration
+│   │   ├── HomeScreen.tsx          # Dashboard with appointments
+│   │   ├── BookScreen.tsx          # Booking/rescheduling flow
+│   │   ├── AppointmentsScreen.tsx  # Dedicated appointments tab
+│   │   ├── ProfileScreen.tsx       # User profile & settings
+│   │   ├── AdminScreen.tsx         # Barber admin interface
+│   │   ├── SubscriptionScreen.tsx  # Subscription management
+│   │   └── CheckInScreen.tsx       # Check-in functionality
+│   ├── services/           # Business logic services
+│   │   ├── PaymentService.ts       # Payment processing
+│   │   └── AppointmentService.ts   # Appointment management
 │   ├── theme/              # Design system
-│   │   ├── colors.ts
-│   │   ├── typography.ts
-│   │   ├── spacing.ts
-│   │   └── index.ts
+│   │   ├── colors.ts               # Color palette
+│   │   ├── typography.ts           # Font system
+│   │   ├── spacing.ts              # Spacing & layout
+│   │   └── index.ts                # Theme exports
 │   └── types/              # TypeScript definitions
-│       └── index.ts
+│       └── index.ts                # Type definitions
 ├── App.tsx                 # Main app component
 ├── package.json
 └── README.md
@@ -200,13 +214,53 @@ npm install
 
 ### ✅ Completed Features
 
+#### 🔐 Authentication & User Management
 - **Authentication System** - Login/register with demo mode
+- **User Profiles** - Complete profile management with preferences
+- **Role-based Access** - Customer and barber/admin views
+
+#### 💳 Subscription & Payment System
 - **Subscription Management** - 3-tier system with credit tracking
-- **Booking System** - Service selection, date/time booking
-- **Check-in Mechanism** - Location-based check-in with approval
-- **Admin Dashboard** - Complete management interface
 - **Payment Integration** - Apple Pay/Google Pay support
-- **Modern UI/UX** - Clean, minimal design system
+- **Credit System** - Automatic credit deduction and restoration
+- **Billing Management** - Payment method updates and billing history
+
+#### 📅 Advanced Booking System
+- **Service Selection** - Multiple service types with pricing
+- **Smart Scheduling** - 14-day availability with time slot management
+- **Rescheduling** - Full reschedule functionality with credit restoration
+- **Rebooking** - Quick rebook from past appointments
+- **Auto-scroll Booking Flow** - App-like guided booking experience
+- **Special Requests** - Custom requests and quick-tag options
+
+#### 📋 Appointment Management
+- **Dedicated Appointments Tab** - Upcoming and past appointment views
+- **Appointment Cards** - Reusable, consistent appointment display
+- **Cancel Appointments** - With automatic credit restoration
+- **Review System** - Rate and review past appointments
+- **Appointment History** - Complete booking history tracking
+
+#### 🏠 Enhanced Home Experience
+- **Dashboard Overview** - Upcoming appointments and quick actions
+- **Stats Cards** - Cuts remaining and days left display
+- **Plan Management** - Quick access to subscription details
+- **Modern Card Design** - Consistent styling throughout
+
+#### 🎨 Modern UI/UX Design
+- **Responsive Design** - Optimized for all screen sizes
+- **Consistent Styling** - Unified design system with proper spacing
+- **Linear Gradient Buttons** - Modern, eye-catching primary actions
+- **Pill-shaped Elements** - Rounded buttons and input fields
+- **Proper Typography** - Consistent font weights and sizes
+- **Card-based Layout** - Clean, organized information display
+
+#### 🔧 Technical Features
+- **TypeScript Integration** - Full type safety throughout
+- **Reusable Components** - Modular, maintainable code structure
+- **Service Layer Architecture** - Centralized appointment management
+- **Navigation Flow** - Seamless screen transitions
+- **State Management** - React Context for global state
+- **Mock Data System** - Realistic demo data for testing
 
 ### 🔮 Future Enhancements
 
