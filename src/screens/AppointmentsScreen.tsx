@@ -52,51 +52,40 @@ const formatAppointmentDate = (dateString: string): string => {
 };
 
 const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
-  const { state } = useApp();
-  const { user } = state;
-  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
-  const [pastAppointments, setPastAppointments] = useState<any[]>([]);
+  const { state, cancelAppointment } = useApp();
+  const { user, appointments } = state;
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedAppointmentForReview, setSelectedAppointmentForReview] = useState<any>(null);
 
-  const loadAppointments = async () => {
-    if (!user?.id) {
-      // Clear appointments if no user
-      setUpcomingAppointments([]);
-      setPastAppointments([]);
-      return;
-    }
-    
-    try {
-      const upcoming = await AppointmentService.getUpcomingAppointments();
-      const past = await AppointmentService.getPastAppointments();
-      setUpcomingAppointments(upcoming);
-      setPastAppointments(past);
-    } catch (error) {
-      console.error('Error loading appointments:', error);
-      // Clear appointments on error
-      setUpcomingAppointments([]);
-      setPastAppointments([]);
-    }
-  };
-
-  useEffect(() => {
-    loadAppointments();
-  }, [user?.id]);
+  // Filter appointments from AppContext
+  const upcomingAppointments = appointments.filter(apt => {
+    const appointmentDate = apt.appointmentDate || apt.date;
+    return apt.status === 'scheduled' && 
+           appointmentDate && 
+           new Date(appointmentDate) >= new Date();
+  });
+  
+  const pastAppointments = appointments.filter(apt => {
+    const appointmentDate = apt.appointmentDate || apt.date;
+    return apt.status === 'completed' || 
+           apt.status === 'cancelled' || 
+           apt.status === 'no_show' ||
+           (apt.status === 'scheduled' && appointmentDate && new Date(appointmentDate) < new Date());
+  });
 
   const handleReschedule = (appointmentId: string) => {
     const appointment = upcomingAppointments.find(apt => apt.id === appointmentId);
     if (appointment) {
       // Mock barber info for now
       const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
-      navigation.navigate('Book', {
+      navigation.navigate('Book' as any, {
         rescheduleAppointment: {
           id: appointmentId,
           shopName: barberInfo?.name || "Unknown Barber",
-          service: appointment.serviceName || appointment.service,
-          currentDate: appointment.appointmentDate || appointment.date,
-          currentTime: appointment.appointmentTime || appointment.time,
+          service: appointment.serviceName || appointment.service || 'Unknown Service',
+          currentDate: appointment.appointmentDate || appointment.date || '',
+          currentTime: appointment.appointmentTime || appointment.time || '',
           location: 'Downtown Plaza',
           barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
@@ -115,9 +104,8 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           style: 'destructive', 
           onPress: async () => {
             try {
-              await AppointmentService.cancelAppointment(appointmentId);
-              // Refresh appointments
-              await loadAppointments();
+              await cancelAppointment(appointmentId);
+              // AppContext will automatically update the state
               Alert.alert('Success', 'Appointment cancelled and credit restored!');
             } catch (error) {
               console.error('Error cancelling appointment:', error);
@@ -134,13 +122,13 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
     if (appointment) {
       // Mock barber info for now
       const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
-      navigation.navigate('Book', {
+      navigation.navigate('Book' as any, {
         rebookAppointment: {
           id: appointmentId,
           shopName: barberInfo?.name || "Unknown Barber",
-          service: appointment.serviceName || appointment.service,
-          currentDate: appointment.appointmentDate || appointment.date,
-          currentTime: appointment.appointmentTime || appointment.time,
+          service: appointment.serviceName || appointment.service || 'Unknown Service',
+          currentDate: appointment.appointmentDate || appointment.date || '',
+          currentTime: appointment.appointmentTime || appointment.time || '',
           location: 'Downtown Plaza',
           barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
@@ -179,11 +167,10 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           barberName: barberInfo.name,
           barberAvatar: barberInfo.avatar,
           barberRating: 4.8,
-          barberReviewCount: 127,
+          barberReviewCount: 0, // Will be updated with real data from ReviewService
         });
         
-        // Refresh appointments to show the updated review
-        await loadAppointments();
+        // AppContext will automatically update the state
         setReviewModalVisible(false);
         setSelectedAppointmentForReview(null);
       } catch (error) {
@@ -208,7 +195,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const renderAppointmentCard = (appointment: any, isUpcoming: boolean) => {
     // Mock barber info and stats for now
     const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
-    const barberStats = { rating: 4.8, reviewCount: 127 };
+    const barberStats = { rating: 4.8, reviewCount: 0 }; // Will be updated with real data from ReviewService
     
     return (
       <AppointmentCard
@@ -289,6 +276,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
         onSubmit={handleSubmitReview}
         barberName={selectedAppointmentForReview ? "Mike's Barbershop" : "Unknown Barber"}
         serviceName={selectedAppointmentForReview?.service || ''}
+        appointmentId={selectedAppointmentForReview?.id || ''}
       />
     </ScrollView>
   );

@@ -19,6 +19,9 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 import { MainTabParamList, RescheduleAppointment } from '../types';
+import { AvailabilityService } from '../services/AvailabilityService';
+import { supabase } from '../lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 
 type BookScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Book'>;
 
@@ -113,17 +116,36 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [appointmentData, isRescheduling]);
 
-  // Reset time selection when date changes
+  // Reset time selection when date or service changes
   useEffect(() => {
-    if (selectedDate) {
-      setSelectedTime(null);
-      const times = generateAvailableTimes();
-      setAvailableTimes(times);
-      console.log(`Date changed to ${selectedDate}, generated ${times.length} time slots`);
-    } else {
-      setAvailableTimes([]);
-    }
-  }, [selectedDate]);
+    const loadAvailableTimes = async () => {
+      if (selectedDate && selectedService) {
+        setSelectedTime(null);
+        const times = await generateAvailableTimes();
+        setAvailableTimes(times);
+        console.log(`Date changed to ${selectedDate}, generated ${times.length} time slots`);
+      } else {
+        setAvailableTimes([]);
+      }
+    };
+    
+    loadAvailableTimes();
+  }, [selectedDate, selectedService]);
+
+  // Refresh available times when screen is focused (e.g., after cancellation)
+  useFocusEffect(
+    React.useCallback(() => {
+      const refreshAvailableTimes = async () => {
+        if (selectedDate && selectedService) {
+          const times = await generateAvailableTimes();
+          setAvailableTimes(times);
+          console.log(`Screen focused - refreshed ${times.length} time slots for ${selectedDate}`);
+        }
+      };
+      
+      refreshAvailableTimes();
+    }, [selectedDate, selectedService])
+  );
 
   // Generate available dates (next 14 days)
   const generateAvailableDates = () => {
@@ -164,61 +186,56 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     return parseInt(hours, 10);
   };
 
-  // Generate available times for selected date
-  const generateAvailableTimes = () => {
-    if (!selectedDate) return [];
+  // Generate available times for selected date using real availability service
+  const generateAvailableTimes = async () => {
+    if (!selectedDate || !selectedService) return [];
     
-    const date = new Date(selectedDate);
-    const dayOfWeek = date.getDay();
-    const availability = mockBarber.availability.find(avail => avail.dayOfWeek === dayOfWeek);
-    
-    if (!availability || !availability.isAvailable) {
-      console.log(`No availability for day ${dayOfWeek} on ${selectedDate}`);
-      return [];
-    }
-    
-    // Check for schedule exceptions
-    const exception = mockBarber.scheduleExceptions.find(exp => exp.date === selectedDate);
-    if (exception && !exception.isAvailable) {
-      console.log(`Date ${selectedDate} has exception: ${exception.reason}`);
-      return [];
-    }
-    
-    const times = [];
-    const startHour = convertTo24Hour(availability.startTime);
-    const endHour = convertTo24Hour(availability.endTime);
-    
-    // Use exception times if available
-    const finalStartHour = exception ? convertTo24Hour(exception.startTime) : startHour;
-    const finalEndHour = exception ? convertTo24Hour(exception.endTime) : endHour;
-    
-    console.log(`Generating times from ${finalStartHour}:00 to ${finalEndHour}:00 for ${selectedDate}`);
-    
-    for (let hour = finalStartHour; hour < finalEndHour; hour++) {
-      // Convert to 12-hour format
-      let hour12 = hour;
-      let period = 'AM';
+    try {
+      // Get the actual barber ID from the database
+      const { data: barberResults, error: barberError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'barber')
+        .limit(1);
       
-      if (hour === 0) {
-        hour12 = 12;
-        period = 'AM';
-      } else if (hour < 12) {
-        hour12 = hour;
-        period = 'AM';
-      } else if (hour === 12) {
-        hour12 = 12;
-        period = 'PM';
-      } else {
-        hour12 = hour - 12;
-        period = 'PM';
+      if (barberError) {
+        console.error('Error fetching barber profile:', barberError);
+        return [];
       }
       
-      times.push(`${hour12}:00 ${period}`);
-      times.push(`${hour12}:30 ${period}`);
+      if (!barberResults || barberResults.length === 0) {
+        console.error('No barber profile found');
+        return [];
+      }
+      
+      const barberId = barberResults[0].id;
+      console.log('Using barber ID:', barberId);
+      
+      // Get service duration
+      const service = mockServices.find(s => s.id === selectedService);
+      const serviceDuration = service?.duration || 30;
+      
+      // Get available time slots from the availability service
+      const availableSlots = await AvailabilityService.getAvailableTimeSlots(
+        barberId,
+        selectedDate,
+        serviceDuration
+      );
+      
+      // Convert 24-hour format to 12-hour format for display
+      const displayTimes = availableSlots.map(time24 => {
+        const [hours, minutes] = time24.split(':');
+        const hour = parseInt(hours, 10);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+        return `${hour12}:${minutes} ${ampm}`;
+      });
+      
+      return displayTimes;
+    } catch (error) {
+      console.error('Error generating available times:', error);
+      return [];
     }
-    
-    console.log(`Generated ${times.length} time slots:`, times);
-    return times;
   };
 
   const availableDates = generateAvailableDates();
@@ -238,7 +255,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     name: "Mike's Barbershop",
     location: "Downtown Plaza • 0.3 mi away",
     rating: 4.9,
-    reviewCount: 127,
+    reviewCount: 0, // Will be updated with real data from ReviewService
     isOpen: true,
     photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face'
   };
@@ -308,13 +325,28 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     const service = mockServices.find(s => s.id === selectedService);
     if (!service) return;
 
+    // Convert 12-hour format to 24-hour format for database storage
+    const convertTo24Hour = (time12Hour: string): string => {
+      const [time, period] = time12Hour.split(' ');
+      const [hours, minutes] = time.split(':');
+      let hour24 = parseInt(hours, 10);
+      
+      if (period === 'PM' && hour24 !== 12) {
+        hour24 += 12;
+      } else if (period === 'AM' && hour24 === 12) {
+        hour24 = 0;
+      }
+      
+      return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
+    };
+
     const appointmentData = {
       serviceId: service.id,
       serviceName: service.name,
       serviceDuration: service.duration,
       servicePrice: service.price,
       appointmentDate: selectedDate,
-      appointmentTime: selectedTime,
+      appointmentTime: convertTo24Hour(selectedTime),
       specialRequests: specialRequests,
       location: '123 Main St, San Francisco, CA',
       paymentMethod: 'Credit Card',

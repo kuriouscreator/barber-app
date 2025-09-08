@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
+import { ReviewService, BarberReview } from '../services/ReviewService';
 
 interface Review {
   id: string;
@@ -40,8 +41,35 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
   const { barberId, barberName, barberAvatar, barberRating, barberReviewCount } = route.params;
   const [activeTab, setActiveTab] = useState<'about' | 'reviews'>('about');
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [reviews, setReviews] = useState<BarberReview[]>([]);
+  const [barberStats, setBarberStats] = useState({ averageRating: 0, totalReviews: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Mock reviews data
+  // Load reviews from database
+  useEffect(() => {
+    const loadReviews = async () => {
+      try {
+        setLoading(true);
+        const [reviewsData, statsData] = await Promise.all([
+          ReviewService.getBarberReviews(barberId),
+          ReviewService.getBarberStats(barberId)
+        ]);
+        setReviews(reviewsData);
+        setBarberStats(statsData);
+      } catch (error) {
+        console.error('Error loading reviews:', error);
+        // Set empty data if there's an error
+        setReviews([]);
+        setBarberStats({ averageRating: 0, totalReviews: 0 });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReviews();
+  }, [barberId, barberRating, barberReviewCount]);
+
+  // Mock reviews data (fallback)
   const mockReviews: Review[] = [
     {
       id: '1',
@@ -90,7 +118,9 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
     },
   ];
 
-  const displayedReviews = showAllReviews ? mockReviews : mockReviews.slice(0, 3);
+  // Only use real reviews from database
+  const allReviews = reviews;
+  const displayedReviews = showAllReviews ? allReviews : allReviews.slice(0, 3);
 
   const renderStars = (rating: number, size: number = 16) => {
     return (
@@ -107,26 +137,32 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
     );
   };
 
-  const renderReview = (review: Review) => (
+  const renderReview = (review: Review | BarberReview) => (
     <View key={review.id} style={styles.reviewCard}>
       <View style={styles.reviewHeader}>
         <View style={styles.reviewCustomer}>
           <Text style={styles.customerName}>{review.customerName}</Text>
           <View style={styles.reviewRating}>
             {renderStars(review.rating, 14)}
-            <Text style={styles.reviewDate}>{new Date(review.date).toLocaleDateString()}</Text>
+            <Text style={styles.reviewDate}>
+              {new Date('date' in review ? review.date : review.appointmentDate).toLocaleDateString()}
+            </Text>
           </View>
         </View>
-        <Text style={styles.reviewService}>{review.service}</Text>
+        <Text style={styles.reviewService}>
+          {'service' in review ? review.service : review.serviceName}
+        </Text>
       </View>
       
-      {review.text && (
-        <Text style={styles.reviewText}>{review.text}</Text>
+      {('text' in review ? review.text : review.reviewText) && (
+        <Text style={styles.reviewText}>
+          {'text' in review ? review.text : review.reviewText}
+        </Text>
       )}
       
-      {review.photos.length > 0 && (
+      {('photos' in review ? review.photos : [review.reviewPhotoUrl].filter(Boolean)).length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewPhotos}>
-          {review.photos.map((photo, index) => (
+          {('photos' in review ? review.photos : [review.reviewPhotoUrl].filter(Boolean)).map((photo, index) => (
             <Image key={index} source={{ uri: photo }} style={styles.reviewPhoto} />
           ))}
         </ScrollView>
@@ -151,9 +187,12 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
           <View style={styles.barberDetails}>
             <Text style={styles.barberName}>{barberName}</Text>
             <View style={styles.ratingContainer}>
-              {renderStars(barberRating, 20)}
+              {renderStars(barberStats.averageRating > 0 ? barberStats.averageRating : barberRating, 20)}
             </View>
-            <Text style={styles.ratingText}>{barberRating.toFixed(1)} ({barberReviewCount} reviews)</Text>
+            <Text style={styles.ratingText}>
+              {(barberStats.averageRating > 0 ? barberStats.averageRating : barberRating).toFixed(1)} 
+              ({barberStats.totalReviews > 0 ? barberStats.totalReviews : barberReviewCount} reviews)
+            </Text>
           </View>
         </View>
 
@@ -172,7 +211,7 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
             onPress={() => setActiveTab('reviews')}
           >
             <Text style={[styles.tabText, activeTab === 'reviews' && styles.activeTabText]}>
-              Reviews ({barberReviewCount})
+              Reviews ({barberStats.totalReviews > 0 ? barberStats.totalReviews : barberReviewCount})
             </Text>
           </TouchableOpacity>
         </View>
@@ -211,26 +250,39 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
 
         {activeTab === 'reviews' && (
           <View style={styles.reviewsContent}>
-            {displayedReviews.map(renderReview)}
-            
-            {mockReviews.length > 3 && !showAllReviews && (
-              <TouchableOpacity
-                style={styles.readMoreButton}
-                onPress={() => setShowAllReviews(true)}
-              >
-                <Text style={styles.readMoreText}>Read More Reviews</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.accent.primary} />
-              </TouchableOpacity>
-            )}
-            
-            {showAllReviews && mockReviews.length > 3 && (
-              <TouchableOpacity
-                style={styles.readMoreButton}
-                onPress={() => setShowAllReviews(false)}
-              >
-                <Text style={styles.readMoreText}>Show Less</Text>
-                <Ionicons name="chevron-up" size={16} color={colors.accent.primary} />
-              </TouchableOpacity>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading reviews...</Text>
+              </View>
+            ) : allReviews.length === 0 ? (
+              <View style={styles.noReviewsContainer}>
+                <Text style={styles.noReviewsText}>No reviews yet</Text>
+                <Text style={styles.noReviewsSubtext}>Be the first to leave a review!</Text>
+              </View>
+            ) : (
+              <>
+                {displayedReviews.map(renderReview)}
+                
+                {allReviews.length > 3 && !showAllReviews && (
+                  <TouchableOpacity
+                    style={styles.readMoreButton}
+                    onPress={() => setShowAllReviews(true)}
+                  >
+                    <Text style={styles.readMoreText}>Read More Reviews</Text>
+                    <Ionicons name="chevron-down" size={16} color={colors.accent.primary} />
+                  </TouchableOpacity>
+                )}
+                
+                {showAllReviews && allReviews.length > 3 && (
+                  <TouchableOpacity
+                    style={styles.readMoreButton}
+                    onPress={() => setShowAllReviews(false)}
+                  >
+                    <Text style={styles.readMoreText}>Show Less</Text>
+                    <Ionicons name="chevron-up" size={16} color={colors.accent.primary} />
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
         )}
@@ -425,6 +477,28 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     color: colors.accent.primary,
+  },
+  loadingContainer: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+  },
+  noReviewsContainer: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  noReviewsText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  noReviewsSubtext: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
   },
 });
 

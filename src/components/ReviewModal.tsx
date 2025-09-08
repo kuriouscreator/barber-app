@@ -11,9 +11,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
+import { uploadReviewPhoto } from '../services/storage';
 
 interface ReviewModalProps {
   visible: boolean;
@@ -25,6 +27,7 @@ interface ReviewModalProps {
   }) => void;
   barberName: string;
   serviceName: string;
+  appointmentId: string;
 }
 
 const ReviewModal: React.FC<ReviewModalProps> = ({
@@ -33,6 +36,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
   onSubmit,
   barberName,
   serviceName,
+  appointmentId,
 }) => {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
@@ -42,22 +46,41 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
     setRating(starRating);
   };
 
-  const handleAddPhoto = () => {
-    // For demo purposes, we'll simulate adding a photo
-    Alert.alert(
-      'Add Photo',
-      'Photo upload functionality would be implemented here. For demo, we\'ll add a placeholder.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Add Photo', 
-          onPress: () => {
-            const newPhoto = `https://picsum.photos/200/200?random=${photos.length + 1}`;
-            setPhotos([...photos, newPhoto]);
-          }
+  const handleAddPhoto = async () => {
+    try {
+      // Request permission to access camera roll
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant permission to access your photo library.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Upload the photo to Supabase storage
+        try {
+          console.log('Uploading photo for appointment:', appointmentId);
+          const photoUrl = await uploadReviewPhoto(appointmentId, asset.uri);
+          console.log('Photo uploaded successfully:', photoUrl);
+          setPhotos([...photos, photoUrl]);
+        } catch (uploadError) {
+          console.error('Error uploading photo:', uploadError);
+          Alert.alert('Upload Error', 'Failed to upload photo. Please try again.');
         }
-      ]
-    );
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -112,7 +135,11 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
           {photos.map((photo, index) => (
             <View key={index} style={styles.photoContainer}>
-              <Image source={{ uri: photo }} style={styles.photo} />
+              <Image 
+                source={{ uri: photo }} 
+                style={styles.photo}
+                onError={(error) => console.error('Image load error:', error)}
+              />
               <TouchableOpacity
                 style={styles.removePhotoButton}
                 onPress={() => handleRemovePhoto(index)}

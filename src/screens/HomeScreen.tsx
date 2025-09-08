@@ -54,32 +54,24 @@ interface Props {
 }
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const { state } = useApp();
+  const { state, cancelAppointment } = useApp();
   const { user, appointments } = state;
   const isBarber = user?.role === 'barber';
-  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const [userCredits, setUserCredits] = useState(2);
 
+  // Filter upcoming appointments from AppContext
+  const upcomingAppointments = appointments.filter(apt => {
+    const appointmentDate = apt.appointmentDate || apt.date;
+    return apt.status === 'scheduled' && 
+           appointmentDate && 
+           new Date(appointmentDate) >= new Date();
+  });
+
   useEffect(() => {
-    // Load user's appointments and credits
-    const loadData = async () => {
-      if (user?.id) {
-        try {
-          const appointments = await AppointmentService.getUpcomingAppointments();
-          setUpcomingAppointments(appointments);
-          setUserCredits(user.credits || 2);
-        } catch (error) {
-          console.error('Error loading appointments:', error);
-          // Clear appointments on error
-          setUpcomingAppointments([]);
-        }
-      } else {
-        // Clear appointments if no user
-        setUpcomingAppointments([]);
-      }
-    };
-    
-    loadData();
+    // Load user credits
+    if (user?.id) {
+      setUserCredits(user.credits || 2);
+    }
   }, [user?.id]);
 
   // Mock data for the new design
@@ -94,10 +86,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // Transform appointment data for display
   const displayAppointments = upcomingAppointments.map(apt => ({
     id: apt.id,
+    barberId: apt.barberId,
     barberName: "Mike's Barbershop",
-    service: apt.serviceName || apt.service,
-    date: formatAppointmentDate(apt.appointmentDate || apt.date),
-    time: apt.appointmentTime || apt.time,
+    service: apt.serviceName || apt.service || 'Unknown Service',
+    date: formatAppointmentDate(apt.appointmentDate || apt.date || ''),
+    time: apt.appointmentTime || apt.time || 'Unknown Time',
     location: 'Downtown Plaza',
     barberPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
   }));
@@ -126,15 +119,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const appointment = upcomingAppointments.find(apt => apt.id === appointmentId);
     if (appointment) {
       // Navigate to Book screen with appointment details for rescheduling
-      navigation.navigate('Book', {
+      navigation.navigate('Book' as any, {
         rescheduleAppointment: {
           id: appointmentId,
-          shopName: appointment.barberName,
-          service: appointment.service,
-          currentDate: appointment.date,
-          currentTime: appointment.time,
-          location: appointment.location,
-          barberAvatar: appointment.barberPhoto,
+          shopName: "Mike's Barbershop",
+          service: appointment.serviceName || appointment.service || 'Unknown Service',
+          currentDate: appointment.appointmentDate || appointment.date || '',
+          currentTime: appointment.appointmentTime || appointment.time || '',
+          location: 'Downtown Plaza',
+          barberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
       });
     }
@@ -151,12 +144,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           style: 'destructive', 
           onPress: async () => {
             try {
-              await AppointmentService.cancelAppointment(appointmentId);
-              // Refresh appointments and credits
-              const appointments = await AppointmentService.getUpcomingAppointments();
-              setUpcomingAppointments(appointments);
-              setUserCredits(user?.credits || 0);
-              
+              await cancelAppointment(appointmentId);
+              // AppContext will automatically update the state
               Alert.alert('Success', 'Appointment cancelled and credit restored!');
             } catch (error) {
               console.error('Error cancelling appointment:', error);
@@ -263,9 +252,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               onReschedule={handleReschedule}
               onCancel={handleCancel}
               onViewBarberProfile={handleViewBarberProfile}
-              barberId="1"
+              barberId={appointment.barberId || "1"}
               barberRating={4.8}
-              barberReviewCount={127}
+              barberReviewCount={0} // Will be updated with real data from ReviewService
             />
           ))}
         </View>

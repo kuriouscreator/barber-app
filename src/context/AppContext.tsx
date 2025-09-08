@@ -3,6 +3,7 @@ import { User, Subscription, Appointment, Service, Barber, Availability, Schedul
 import { useAuth } from '../hooks/useAuth';
 import { getUserProfile } from '../services/profileService';
 import { AppointmentService, CreateAppointmentData } from '../services/AppointmentService';
+import { AvailabilityService } from '../services/AvailabilityService';
 
 interface AppState {
   user: User | null;
@@ -124,6 +125,7 @@ interface AppContextType {
   login: (user: User) => void;
   logout: () => void;
   bookAppointment: (appointmentData: CreateAppointmentData) => Promise<Appointment>;
+  cancelAppointment: (appointmentId: string) => Promise<Appointment>;
   updateAppointment: (appointmentId: string, updateData: any) => Promise<Appointment>;
   addService: (service: Service) => void;
   updateService: (service: Service) => void;
@@ -229,6 +231,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const cancelAppointment = async (appointmentId: string) => {
+    try {
+      const appointment = await AppointmentService.cancelAppointment(appointmentId);
+      dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
+      
+      // Clear availability cache so that the freed time slot becomes available immediately
+      AvailabilityService.clearCache();
+      
+      return appointment;
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      throw error;
+    }
+  };
+
   const updateAppointment = async (appointmentId: string, updateData: any) => {
     try {
       const appointment = await AppointmentService.updateAppointment(appointmentId, updateData);
@@ -303,6 +320,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     login,
     logout,
     bookAppointment,
+    cancelAppointment,
     updateAppointment,
     addService,
     updateService,

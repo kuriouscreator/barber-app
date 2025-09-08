@@ -60,7 +60,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
   showReviewButton = true,
   barberId,
   barberRating = 4.8,
-  barberReviewCount = 127,
+  barberReviewCount = 0,
 }) => {
   // Function to render star rating
   const renderStars = (rating: number) => {

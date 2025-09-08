@@ -97,6 +97,10 @@ export class AppointmentService {
         barberData = { id: user.id };
       }
 
+      // Note: We don't need to check availability here since the BookScreen
+      // only shows available time slots. If a slot is shown, it should be bookable.
+      // The availability check happens when generating the time slots.
+
       const { data, error } = await supabase
         .from('appointments')
         .insert({
@@ -192,16 +196,27 @@ export class AppointmentService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      // First, mark the appointment as completed if it's still scheduled
+      const { data: appointmentData, error: fetchError } = await supabase
+        .from('appointments')
+        .select('status')
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Update appointment with review and mark as completed
       const { data, error } = await supabase
         .from('appointments')
         .update({
           rating,
           review_text: reviewText,
-          review_photo_url: reviewPhotoUrl
+          review_photo_url: reviewPhotoUrl,
+          status: 'completed' // Mark as completed when review is submitted
         })
         .eq('id', appointmentId)
         .eq('user_id', user.id)
-        .eq('status', 'completed') // Only allow reviews for completed appointments
         .select()
         .single();
 
