@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useState, useRef, useCallback } from 'react';
 import { User, Subscription, Appointment, Service, Barber, Availability, ScheduleException } from '../types';
+import { useAuth } from '../hooks/useAuth';
+import { getUserProfile } from '../services/profileService';
+import { AppointmentService, CreateAppointmentData } from '../services/AppointmentService';
 
 interface AppState {
   user: User | null;
@@ -120,8 +123,8 @@ interface AppContextType {
   dispatch: React.Dispatch<AppAction>;
   login: (user: User) => void;
   logout: () => void;
-  bookAppointment: (appointment: Appointment) => void;
-  updateAppointment: (appointment: Appointment) => void;
+  bookAppointment: (appointmentData: CreateAppointmentData) => Promise<Appointment>;
+  updateAppointment: (appointmentId: string, updateData: any) => Promise<Appointment>;
   addService: (service: Service) => void;
   updateService: (service: Service) => void;
   deleteService: (serviceId: string) => void;
@@ -130,28 +133,111 @@ interface AppContextType {
   updateScheduleException: (exception: ScheduleException) => void;
   deleteScheduleException: (exceptionId: string) => void;
   getAvailabilityForDate: (date: string) => { startTime: string; endTime: string; isAvailable: boolean } | null;
+  syncUser: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  const { user: authUser, signOut } = useAuth();
+  const lastSyncedUserIdRef = useRef<string | null>(null);
+
+  // Simple effect to sync user when authUser changes
+  useEffect(() => {
+    const syncUser = async () => {
+      if (authUser && lastSyncedUserIdRef.current !== authUser.id) {
+        try {
+          // Fetch user profile to get role and other details
+          const profile = await getUserProfile(authUser.id);
+          
+          // Convert Supabase user to our User type
+          const user: User = {
+            id: authUser.id,
+            name: profile?.full_name || authUser.email?.split('@')[0] || 'User',
+            email: authUser.email || '',
+            role: profile?.role || 'customer', // Use profile role or default to customer
+            avatar: profile?.avatar_url || authUser.user_metadata?.avatar_url || null,
+            phone: profile?.phone || authUser.user_metadata?.phone || null,
+            memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
+            location: 'San Francisco, CA', // Default location
+            credits: 4, // Default credits
+          };
+          dispatch({ type: 'SET_USER', payload: user });
+          
+          // Load user's appointments from Supabase
+          const appointments = await AppointmentService.getUserAppointments();
+          dispatch({ type: 'SET_APPOINTMENTS', payload: appointments });
+          
+          lastSyncedUserIdRef.current = authUser.id;
+        } catch (error) {
+          console.error('Error syncing user:', error);
+          // Fallback to basic user data
+          const user: User = {
+            id: authUser.id,
+            name: authUser.email?.split('@')[0] || 'User',
+            email: authUser.email || '',
+            role: 'customer',
+            avatar: authUser.user_metadata?.avatar_url || null,
+            phone: authUser.user_metadata?.phone || null,
+            memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
+            location: 'San Francisco, CA',
+            credits: 4, // Default credits
+          };
+          dispatch({ type: 'SET_USER', payload: user });
+          lastSyncedUserIdRef.current = authUser.id;
+        }
+      } else if (!authUser && state.user) {
+        // Clear user if no auth user and we had a user before
+        dispatch({ type: 'SET_USER', payload: null });
+        dispatch({ type: 'SET_APPOINTMENTS', payload: [] });
+        lastSyncedUserIdRef.current = null;
+      }
+    };
+
+    syncUser();
+  }, [authUser?.id]);
 
   const login = (user: User) => {
+    // This is now handled by Supabase auth, but keeping for compatibility
     dispatch({ type: 'SET_USER', payload: user });
   };
 
-  const logout = () => {
-    dispatch({ type: 'SET_USER', payload: null });
-    dispatch({ type: 'SET_APPOINTMENTS', payload: [] });
+  const logout = async () => {
+    try {
+      // Clear local state immediately
+      dispatch({ type: 'SET_USER', payload: null });
+      dispatch({ type: 'SET_APPOINTMENTS', payload: [] });
+      lastSyncedUserIdRef.current = null;
+      
+      // Then sign out from Supabase
+      await signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if signOut fails, we've already cleared local state
+    }
   };
 
-  const bookAppointment = (appointment: Appointment) => {
-    dispatch({ type: 'ADD_APPOINTMENT', payload: appointment });
+  const bookAppointment = async (appointmentData: CreateAppointmentData) => {
+    try {
+      const appointment = await AppointmentService.createAppointment(appointmentData);
+      dispatch({ type: 'ADD_APPOINTMENT', payload: appointment });
+      return appointment;
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      throw error;
+    }
   };
 
-  const updateAppointment = (appointment: Appointment) => {
-    dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
+  const updateAppointment = async (appointmentId: string, updateData: any) => {
+    try {
+      const appointment = await AppointmentService.updateAppointment(appointmentId, updateData);
+      dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
+      return appointment;
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      throw error;
+    }
   };
 
 
@@ -226,6 +312,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateScheduleException,
     deleteScheduleException,
     getAvailabilityForDate,
+    syncUser: async () => {}, // Dummy function since we're not exposing the real one
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

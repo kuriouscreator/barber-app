@@ -12,6 +12,15 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
 
+// Utility function to convert 24hr time to 12hr format
+const formatTimeTo12Hour = (time24: string): string => {
+  const [hours, minutes] = time24.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${hour12}:${minutes} ${ampm}`;
+};
+
 export interface AppointmentCardProps {
   id: string;
   barberName: string;
@@ -76,10 +85,6 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
             style={styles.barberNameContainer}
           >
             <Text style={styles.barberName} numberOfLines={1}>{barberName}</Text>
-            <View style={styles.barberRatingContainer}>
-              <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.barberRatingText}>{barberRating.toFixed(1)}</Text>
-            </View>
           </TouchableOpacity>
           <Text style={styles.serviceName}>{service}</Text>
           <View style={styles.appointmentLocation}>
@@ -94,7 +99,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
         </View>
         <View style={styles.appointmentRight}>
           <Text style={styles.appointmentDate}>{date}</Text>
-          <Text style={styles.appointmentTime}>{time}</Text>
+          <Text style={styles.appointmentTime}>{formatTimeTo12Hour(time)}</Text>
         </View>
       </View>
       

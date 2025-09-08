@@ -2,11 +2,13 @@ import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AppProvider, useApp } from './src/context/AppContext';
+import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import { mockServices, mockSubscriptions, mockBarber } from './src/data/mockData';
 import AppNavigator from './src/navigation/AppNavigator';
 
 const AppContent: React.FC = () => {
   const { dispatch } = useApp();
+  const { loading } = useAuth();
 
   useEffect(() => {
     // Initialize mock data
@@ -14,6 +16,10 @@ const AppContent: React.FC = () => {
     dispatch({ type: 'SET_SUBSCRIPTIONS', payload: mockSubscriptions });
     dispatch({ type: 'SET_BARBER', payload: mockBarber });
   }, [dispatch]);
+
+  if (loading) {
+    return null; // Or a loading screen
+  }
 
   return (
     <>
@@ -25,8 +31,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </AuthProvider>
   );
 }

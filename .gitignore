@@ -132,6 +132,24 @@ $RECYCLE.BIN/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+
+# Supabase
+.supabase/
+
+# Firebase
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+
+# AWS
+.aws/
+
+# Google Cloud
+.gcloud/
+
+# Azure
+.azure/
 
 # Build outputs
 build/

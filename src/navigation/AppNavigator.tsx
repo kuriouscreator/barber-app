@@ -7,11 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 
 // Screens
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
+import SignInScreen from '../screens/SignInScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import HomeScreen from '../screens/HomeScreen';
 import BookScreen from '../screens/BookScreen';
@@ -163,6 +163,7 @@ const MainTabNavigator = () => {
 
 const AppNavigator = () => {
   const { state } = useApp();
+  const { session } = useAuth();
 
   return (
     <NavigationContainer>
@@ -181,20 +182,7 @@ const AppNavigator = () => {
           headerTintColor: colors.text.primary,
         }}
       >
-        {!state.user ? (
-          <>
-            <Stack.Screen 
-              name="Login" 
-              component={LoginScreen} 
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen 
-              name="Register" 
-              component={RegisterScreen} 
-              options={{ title: 'Create Account' }}
-            />
-          </>
-        ) : (
+        {session && state.user ? (
           <>
             <Stack.Screen 
               name="Main" 
@@ -212,6 +200,13 @@ const AppNavigator = () => {
               options={{ headerShown: false }}
             />
           </>
+        ) : (
+          // Show SignInScreen when not authenticated
+          <Stack.Screen 
+            name="SignIn" 
+            component={SignInScreen} 
+            options={{ headerShown: false }}
+          />
         )}
       </Stack.Navigator>
     </NavigationContainer>

@@ -60,32 +60,43 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedAppointmentForReview, setSelectedAppointmentForReview] = useState<any>(null);
 
-  const loadAppointments = () => {
-    if (user?.id) {
-      const upcoming = AppointmentService.getUpcomingAppointments(user.id);
-      const past = AppointmentService.getPastAppointments(user.id);
+  const loadAppointments = async () => {
+    if (!user?.id) {
+      // Clear appointments if no user
+      setUpcomingAppointments([]);
+      setPastAppointments([]);
+      return;
+    }
+    
+    try {
+      const upcoming = await AppointmentService.getUpcomingAppointments();
+      const past = await AppointmentService.getPastAppointments();
       setUpcomingAppointments(upcoming);
       setPastAppointments(past);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+      // Clear appointments on error
+      setUpcomingAppointments([]);
+      setPastAppointments([]);
     }
   };
 
   useEffect(() => {
-    // Initialize the appointment service
-    AppointmentService.initialize();
     loadAppointments();
   }, [user?.id]);
 
   const handleReschedule = (appointmentId: string) => {
     const appointment = upcomingAppointments.find(apt => apt.id === appointmentId);
     if (appointment) {
-      const barberInfo = AppointmentService.getBarberInfo(appointment.barberId);
+      // Mock barber info for now
+      const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
       navigation.navigate('Book', {
         rescheduleAppointment: {
           id: appointmentId,
           shopName: barberInfo?.name || "Unknown Barber",
-          service: appointment.service,
-          currentDate: appointment.date,
-          currentTime: appointment.time,
+          service: appointment.serviceName || appointment.service,
+          currentDate: appointment.appointmentDate || appointment.date,
+          currentTime: appointment.appointmentTime || appointment.time,
           location: 'Downtown Plaza',
           barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
@@ -103,19 +114,14 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           text: 'Cancel', 
           style: 'destructive', 
           onPress: async () => {
-            if (user?.id) {
-              const success = await AppointmentService.cancelAppointment(appointmentId, user.id);
-              if (success) {
-                // Refresh appointments
-                const upcoming = AppointmentService.getUpcomingAppointments(user.id);
-                const past = AppointmentService.getPastAppointments(user.id);
-                setUpcomingAppointments(upcoming);
-                setPastAppointments(past);
-                
-                Alert.alert('Success', 'Appointment cancelled and credit restored!');
-              } else {
-                Alert.alert('Error', 'Failed to cancel appointment');
-              }
+            try {
+              await AppointmentService.cancelAppointment(appointmentId);
+              // Refresh appointments
+              await loadAppointments();
+              Alert.alert('Success', 'Appointment cancelled and credit restored!');
+            } catch (error) {
+              console.error('Error cancelling appointment:', error);
+              Alert.alert('Error', 'Failed to cancel appointment');
             }
           }
         },
@@ -126,14 +132,15 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const handleRebook = (appointmentId: string) => {
     const appointment = pastAppointments.find(apt => apt.id === appointmentId);
     if (appointment) {
-      const barberInfo = AppointmentService.getBarberInfo(appointment.barberId);
+      // Mock barber info for now
+      const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
       navigation.navigate('Book', {
         rebookAppointment: {
           id: appointmentId,
           shopName: barberInfo?.name || "Unknown Barber",
-          service: appointment.service,
-          currentDate: appointment.date,
-          currentTime: appointment.time,
+          service: appointment.serviceName || appointment.service,
+          currentDate: appointment.appointmentDate || appointment.date,
+          currentTime: appointment.appointmentTime || appointment.time,
           location: 'Downtown Plaza',
           barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
         }
@@ -149,28 +156,38 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const handleSubmitReview = (reviewData: { rating: number; text: string; photos: string[] }) => {
+  const handleSubmitReview = async (reviewData: { rating: number; text: string; photos: string[] }) => {
     if (selectedAppointmentForReview) {
-      const success = AppointmentService.submitReview(selectedAppointmentForReview.id, reviewData);
-      if (success) {
-        // Get updated barber stats after review submission
-        const barberStats = AppointmentService.getBarberStats(selectedAppointmentForReview.barberId);
+      try {
+        await AppointmentService.submitReview(
+          selectedAppointmentForReview.id, 
+          reviewData.rating, 
+          reviewData.text, 
+          reviewData.photos[0] // Use first photo if available
+        );
         
-        // Get barber info for navigation
-        const barberInfo = AppointmentService.getBarberInfo(selectedAppointmentForReview.barberId);
+        // Mock barber info for navigation
+        const barberInfo = { 
+          id: selectedAppointmentForReview.barberId, 
+          name: 'Mike\'s Barbershop', 
+          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' 
+        };
         
-        // Navigate to barber profile with updated stats
+        // Navigate to barber profile
         navigation.navigate('BarberProfile', {
           barberId: selectedAppointmentForReview.barberId,
-          barberName: barberInfo?.name || "Unknown Barber",
-          barberAvatar: barberInfo?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-          barberRating: barberStats.rating,
-          barberReviewCount: barberStats.reviewCount,
+          barberName: barberInfo.name,
+          barberAvatar: barberInfo.avatar,
+          barberRating: 4.8,
+          barberReviewCount: 127,
         });
         
         // Refresh appointments to show the updated review
-        loadAppointments();
-      } else {
+        await loadAppointments();
+        setReviewModalVisible(false);
+        setSelectedAppointmentForReview(null);
+      } catch (error) {
+        console.error('Error submitting review:', error);
         Alert.alert('Error', 'Failed to submit review. Please try again.');
       }
     }
@@ -189,17 +206,18 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const renderAppointmentCard = (appointment: any, isUpcoming: boolean) => {
-    const barberInfo = AppointmentService.getBarberInfo(appointment.barberId);
-    const barberStats = AppointmentService.getBarberStats(appointment.barberId);
+    // Mock barber info and stats for now
+    const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
+    const barberStats = { rating: 4.8, reviewCount: 127 };
     
     return (
       <AppointmentCard
         key={appointment.id}
         id={appointment.id}
         barberName={barberInfo?.name || "Unknown Barber"}
-        service={appointment.service}
-        date={formatAppointmentDate(appointment.date)}
-        time={appointment.time}
+        service={appointment.serviceName || appointment.service}
+        date={formatAppointmentDate(appointment.appointmentDate || appointment.date)}
+        time={appointment.appointmentTime || appointment.time}
         location="Downtown Plaza"
         barberPhoto={barberInfo?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face"}
         isUpcoming={isUpcoming}
@@ -269,7 +287,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           setSelectedAppointmentForReview(null);
         }}
         onSubmit={handleSubmitReview}
-        barberName={selectedAppointmentForReview ? AppointmentService.getBarberInfo(selectedAppointmentForReview.barberId)?.name || "Unknown Barber" : "Unknown Barber"}
+        barberName={selectedAppointmentForReview ? "Mike's Barbershop" : "Unknown Barber"}
         serviceName={selectedAppointmentForReview?.service || ''}
       />
     </ScrollView>

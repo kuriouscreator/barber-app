@@ -13,8 +13,11 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../hooks/useAuth';
+import { uploadAvatar } from '../services/storage';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
@@ -28,6 +31,8 @@ interface Props {
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { state, logout } = useApp();
   const { user, appointments } = state;
+  const { user: authUser } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const isBarber = user?.role === 'barber';
 
   // New state for preferences
@@ -117,15 +122,54 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   // Helper functions
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: logout },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              // Only call logout from AppContext, which handles both local and Supabase logout
+              await logout();
+            } catch (error) {
+              console.error('Logout error:', error);
+            }
+          }
+        },
       ]
     );
+  };
+
+  const handleAvatarUpload = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant camera roll permissions to upload an avatar.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0] && authUser?.id) {
+        const uri = result.assets[0].uri;
+        const uploadedUrl = await uploadAvatar(authUser.id, uri);
+        setAvatarUrl(uploadedUrl);
+        Alert.alert('Success', 'Avatar updated successfully!');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to upload avatar');
+    }
   };
 
   const handleManageSubscription = () => {
@@ -235,6 +279,45 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <Ionicons name="pause" size={24} color={colors.text.primary} />
                 <Text style={styles.actionTileTitle}>Pause Plan</Text>
                 <Text style={styles.actionTileSubtitle}>Temporary hold</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Profile Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Profile Information</Text>
+            
+            <View style={styles.profileCard}>
+              <View style={styles.profileHeader}>
+                <View style={styles.avatarContainer}>
+                  {avatarUrl ? (
+                    <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                  ) : (
+                    <View style={styles.avatarPlaceholder}>
+                      <Ionicons name="person" size={40} color={colors.text.secondary} />
+                    </View>
+                  )}
+                  <TouchableOpacity style={styles.avatarEditButton} onPress={handleAvatarUpload}>
+                    <Ionicons name="camera" size={16} color={colors.white} />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.profileInfo}>
+                  <Text style={styles.profileName}>
+                    {authUser?.email || user?.name || 'User Name'}
+                  </Text>
+                  <Text style={styles.profileEmail}>
+                    {authUser?.email || 'user@example.com'}
+                  </Text>
+                  <Text style={styles.profileRole}>
+                    {isBarber ? 'Barber' : 'Customer'}
+                  </Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity style={styles.editProfileButton} onPress={handleEditProfile}>
+                <Ionicons name="create-outline" size={20} color={colors.accent.primary} />
+                <Text style={styles.editProfileButtonText}>Edit Profile</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -979,6 +1062,90 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#DC2626',
     marginLeft: 12,
+  },
+
+  // Profile Information
+  profileCard: {
+    backgroundColor: colors.white,
+    borderColor: colors.border.light,
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    shadowColor: '#0000000D',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: spacing.lg,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border.light,
+  },
+  avatarEditButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: colors.accent.primary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  profileEmail: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  profileRole: {
+    fontSize: typography.fontSize.sm,
+    color: colors.accent.primary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  editProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  editProfileButtonText: {
+    fontSize: typography.fontSize.base,
+    color: colors.accent.primary,
+    fontWeight: typography.fontWeight.medium,
   },
 });
 

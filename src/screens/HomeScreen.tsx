@@ -16,6 +16,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
 import { AppointmentService } from '../services/AppointmentService';
+
+const formatAppointmentDate = (dateString: string): string => {
+  const today = new Date();
+  const appointmentDate = new Date(dateString);
+  
+  // Check if it's today
+  if (appointmentDate.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+  
+  // Check if it's tomorrow
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (appointmentDate.toDateString() === tomorrow.toDateString()) {
+    return 'Tomorrow';
+  }
+  
+  // Format as "Dec 28" or "Jan 13"
+  return appointmentDate.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric' 
+  });
+};
+
 import { colors } from '../theme/colors';
 import AppointmentCard from '../components/AppointmentCard';
 import { typography } from '../theme/typography';
@@ -37,16 +61,25 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [userCredits, setUserCredits] = useState(2);
 
   useEffect(() => {
-    // Initialize the appointment service
-    AppointmentService.initialize();
-    
     // Load user's appointments and credits
-    if (user?.id) {
-      const appointments = AppointmentService.getUpcomingAppointments(user.id);
-      const userData = AppointmentService.getUser(user.id);
-      setUpcomingAppointments(appointments);
-      setUserCredits(userData?.credits || 2);
-    }
+    const loadData = async () => {
+      if (user?.id) {
+        try {
+          const appointments = await AppointmentService.getUpcomingAppointments();
+          setUpcomingAppointments(appointments);
+          setUserCredits(user.credits || 2);
+        } catch (error) {
+          console.error('Error loading appointments:', error);
+          // Clear appointments on error
+          setUpcomingAppointments([]);
+        }
+      } else {
+        // Clear appointments if no user
+        setUpcomingAppointments([]);
+      }
+    };
+    
+    loadData();
   }, [user?.id]);
 
   // Mock data for the new design
@@ -62,9 +95,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const displayAppointments = upcomingAppointments.map(apt => ({
     id: apt.id,
     barberName: "Mike's Barbershop",
-    service: apt.service,
-    date: apt.date === '2024-12-30' ? 'Today' : 'Jan 13',
-    time: apt.time,
+    service: apt.serviceName || apt.service,
+    date: formatAppointmentDate(apt.appointmentDate || apt.date),
+    time: apt.appointmentTime || apt.time,
     location: 'Downtown Plaza',
     barberPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
   }));
@@ -117,24 +150,32 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           text: 'Cancel', 
           style: 'destructive', 
           onPress: async () => {
-            if (user?.id) {
-              const success = await AppointmentService.cancelAppointment(appointmentId, user.id);
-              if (success) {
-                // Refresh appointments and credits
-                const appointments = AppointmentService.getUpcomingAppointments(user.id);
-                const userData = AppointmentService.getUser(user.id);
-                setUpcomingAppointments(appointments);
-                setUserCredits(userData?.credits || 0);
-                
-                Alert.alert('Success', 'Appointment cancelled and credit restored!');
-              } else {
-                Alert.alert('Error', 'Failed to cancel appointment');
-              }
+            try {
+              await AppointmentService.cancelAppointment(appointmentId);
+              // Refresh appointments and credits
+              const appointments = await AppointmentService.getUpcomingAppointments();
+              setUpcomingAppointments(appointments);
+              setUserCredits(user?.credits || 0);
+              
+              Alert.alert('Success', 'Appointment cancelled and credit restored!');
+            } catch (error) {
+              console.error('Error cancelling appointment:', error);
+              Alert.alert('Error', 'Failed to cancel appointment');
             }
           }
         },
       ]
     );
+  };
+
+  const handleViewBarberProfile = (barberId: string, barberName: string, barberAvatar: string, barberRating: number, barberReviewCount: number) => {
+    navigation.navigate('BarberProfile', {
+      barberId,
+      barberName,
+      barberAvatar,
+      barberRating,
+      barberReviewCount,
+    });
   };
 
 
@@ -221,6 +262,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               isUpcoming={true}
               onReschedule={handleReschedule}
               onCancel={handleCancel}
+              onViewBarberProfile={handleViewBarberProfile}
+              barberId="1"
+              barberRating={4.8}
+              barberReviewCount={127}
             />
           ))}
         </View>

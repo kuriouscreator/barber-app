@@ -8,6 +8,9 @@ export interface User {
   role: UserRole;
   subscription?: Subscription;
   credits: number;
+  avatar?: string;
+  memberSince?: string;
+  location?: string;
 }
 
 export interface Subscription {
@@ -34,16 +37,31 @@ export interface Review {
 
 export interface Appointment {
   id: string;
-  userId: string;
-  barberId: string;
-  date: string;
-  time: string;
-  service: string;
-  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
-  notes?: string;
-  creditUsed?: boolean; // Track if a credit was used for this appointment
+  serviceId: string;
+  serviceName: string;
+  serviceDuration: number;
+  servicePrice: number;
+  appointmentDate: string; // YYYY-MM-DD format
+  appointmentTime: string; // HH:MM format
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  specialRequests?: string;
+  location?: string;
+  paymentMethod?: string;
+  creditsUsed?: number;
   rating?: number | null; // Rating given by the user (1-5 stars)
-  review?: Review; // Full review object if user has reviewed
+  reviewText?: string;
+  reviewPhotoUrl?: string;
+  barberId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  // Legacy fields for backward compatibility
+  userId?: string;
+  date?: string;
+  time?: string;
+  service?: string;
+  notes?: string;
+  creditUsed?: boolean;
+  review?: Review;
 }
 
 export interface Barber {
@@ -82,7 +100,7 @@ export interface ScheduleException {
 
 export type RootStackParamList = {
   Main: undefined;
-  Login: undefined;
+  SignIn: undefined;
   Register: undefined;
   Subscription: undefined;
   Booking: undefined;

@@ -1,320 +1,298 @@
-import { Alert } from 'react-native';
-import { Appointment, User, Review } from '../types';
+import { supabase } from '../lib/supabase';
+import { Appointment } from '../types';
+
+export interface CreateAppointmentData {
+  serviceId: string;
+  serviceName: string;
+  serviceDuration: number;
+  servicePrice: number;
+  appointmentDate: string; // YYYY-MM-DD format
+  appointmentTime: string; // HH:MM format
+  specialRequests?: string;
+  location?: string;
+  paymentMethod?: string;
+  creditsUsed?: number;
+}
+
+export interface UpdateAppointmentData {
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  rating?: number;
+  reviewText?: string;
+  reviewPhotoUrl?: string;
+  specialRequests?: string;
+}
 
 export class AppointmentService {
-  // Mock data storage - in a real app, this would be API calls
-  private static appointments: Appointment[] = [];
-  private static users: { [key: string]: User } = {};
-  private static barbers: { [key: string]: any } = {
-    'barber-1': {
-      id: 'barber-1',
-      name: "Mike's Barbershop",
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-    }
-  };
+  /**
+   * Get all appointments for the current user
+   */
+  static async getUserAppointments(): Promise<Appointment[]> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
 
-  // Initialize with mock data
-  static initialize() {
-    // Mock appointments with credit tracking
-    this.appointments = [
-      // Upcoming appointments
-      {
-        id: '1',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-12-30',
-        time: '2:30 PM',
-        service: 'Classic Haircut',
-        status: 'scheduled',
-        creditUsed: true, // This appointment used a credit
-      },
-      {
-        id: '2',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2025-01-13',
-        time: '10:00 AM',
-        service: 'Beard Trim',
-        status: 'scheduled',
-        creditUsed: true, // This appointment used a credit
-      },
-      // Past appointments
-      {
-        id: '3',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-12-28',
-        time: '2:30 PM',
-        service: 'Classic Haircut',
-        status: 'completed',
-        creditUsed: true,
-        rating: null, // Not reviewed yet
-      },
-      {
-        id: '4',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-12-15',
-        time: '11:00 AM',
-        service: 'Beard Trim + Haircut',
-        status: 'completed',
-        creditUsed: true,
-        rating: 4, // Reviewed with 4 stars
-      },
-      {
-        id: '5',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-12-01',
-        time: '3:15 PM',
-        service: 'Fade Cut',
-        status: 'completed',
-        creditUsed: true,
-        rating: 5, // Reviewed with 5 stars
-      },
-      {
-        id: '6',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-11-20',
-        time: '1:45 PM',
-        service: 'Classic Haircut',
-        status: 'completed',
-        creditUsed: true,
-        rating: null, // Not reviewed yet
-      },
-      {
-        id: '7',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-11-05',
-        time: '10:30 AM',
-        service: 'Beard Trim',
-        status: 'completed',
-        creditUsed: true,
-      },
-      {
-        id: '8',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-10-22',
-        time: '4:00 PM',
-        service: 'Haircut + Styling',
-        status: 'completed',
-        creditUsed: true,
-      },
-      {
-        id: '9',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-10-08',
-        time: '2:15 PM',
-        service: 'Classic Haircut',
-        status: 'completed',
-        creditUsed: true,
-      },
-      {
-        id: '10',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-09-25',
-        time: '11:45 AM',
-        service: 'Beard Trim + Haircut',
-        status: 'completed',
-        creditUsed: true,
-      },
-      {
-        id: '11',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-09-10',
-        time: '3:30 PM',
-        service: 'Fade Cut',
-        status: 'completed',
-        creditUsed: true,
-      },
-      {
-        id: '12',
-        userId: 'customer-1',
-        barberId: 'barber-1',
-        date: '2024-08-28',
-        time: '1:00 PM',
-        service: 'Classic Haircut',
-        status: 'completed',
-        creditUsed: true,
-      },
-    ];
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
 
-    // Mock user data
-    this.users = {
-      'customer-1': {
-        id: 'customer-1',
-        name: 'John Doe',
-        email: 'customer@demo.com',
-        phone: '+1 (555) 123-4567',
-        role: 'customer',
-        credits: 1, // User has 1 credit remaining (3 total - 2 used)
-        subscription: {
-          id: '2',
-          name: 'Premium',
-          price: 79.99,
-          credits: 3,
-          duration: 'monthly',
-          description: '3 haircuts per month',
-        },
-      },
-    };
-  }
+      if (error) throw error;
 
-  // Get user's upcoming appointments
-  static getUpcomingAppointments(userId: string): Appointment[] {
-    return this.appointments.filter(
-      apt => apt.userId === userId && 
-      (apt.status === 'scheduled' || apt.status === 'confirmed')
-    );
-  }
-
-  // Get user's past appointments
-  static getPastAppointments(userId: string): Appointment[] {
-    return this.appointments.filter(
-      apt => apt.userId === userId && 
-      (apt.status === 'completed' || apt.status === 'cancelled')
-    );
-  }
-
-  // Cancel an appointment and restore credit if applicable
-  static cancelAppointment(appointmentId: string, userId: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      const appointment = this.appointments.find(apt => apt.id === appointmentId);
-      const user = this.users[userId];
-
-      if (!appointment || !user) {
-        resolve(false);
-        return;
-      }
-
-      // Update appointment status
-      appointment.status = 'cancelled';
-
-      // Restore credit if one was used
-      if (appointment.creditUsed && user.subscription && user.credits < user.subscription.credits) {
-        user.credits += 1;
-        console.log(`Credit restored! User now has ${user.credits} credits.`);
-      }
-
-      resolve(true);
-    });
-  }
-
-  // Get user data
-  static getUser(userId: string): User | undefined {
-    return this.users[userId];
-  }
-
-  // Update user data
-  static updateUser(userId: string, userData: Partial<User>): void {
-    if (this.users[userId]) {
-      this.users[userId] = { ...this.users[userId], ...userData };
+      return data?.map(this.mapToAppointment) || [];
+    } catch (error) {
+      console.error('Error fetching user appointments:', error);
+      return [];
     }
   }
 
-  // Book a new appointment (deduct credit)
-  static bookAppointment(appointment: Omit<Appointment, 'id' | 'status'>): Promise<string> {
-    return new Promise((resolve) => {
-      const user = this.users[appointment.userId];
+  /**
+   * Create a new appointment
+   */
+  static async createAppointment(appointmentData: CreateAppointmentData): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // In this single-barber app, all customers are automatically assigned to the one barber
+      // Find the barber profile (there should only be one)
+      console.log('Looking for barber profile...');
       
-      if (!user || user.credits <= 0) {
-        resolve('');
-        return;
+      // First, let's see what profiles exist
+      const { data: allProfiles, error: allProfilesError } = await supabase
+        .from('profiles')
+        .select('id, email, role');
+      
+      if (allProfilesError) {
+        console.error('Error fetching all profiles:', allProfilesError);
+      } else {
+        console.log('All profiles in database:', allProfiles);
+      }
+      
+      // Now try to find the barber profile
+      const { data: barberResults, error: barberError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'barber')
+        .limit(1);
+      
+      let barberData: { id: string } | null = null;
+      
+      if (barberError) {
+        console.error('Error fetching barber profile:', barberError);
+      } else if (barberResults && barberResults.length > 0) {
+        console.log('Found barber profile:', barberResults[0]);
+        barberData = barberResults[0];
+      } else {
+        console.log('No barber profile found in results');
       }
 
-      // Create new appointment
-      const newAppointment: Appointment = {
-        ...appointment,
-        id: Date.now().toString(),
-        status: 'scheduled',
-        creditUsed: true, // Mark that this appointment used a credit
-      };
+      if (!barberData) {
+        console.error('No barber profile found. Creating a temporary barber profile for testing...');
+        
+        // For testing purposes, create a temporary barber profile using the current user's ID
+        // This is a workaround until the proper barber user is set up
+        console.log('Using current user as temporary barber for testing');
+        barberData = { id: user.id };
+      }
 
-      this.appointments.push(newAppointment);
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert({
+          user_id: user.id,
+          barber_id: barberData.id,
+          service_id: appointmentData.serviceId,
+          service_name: appointmentData.serviceName,
+          service_duration: appointmentData.serviceDuration,
+          service_price: appointmentData.servicePrice,
+          appointment_date: appointmentData.appointmentDate,
+          appointment_time: appointmentData.appointmentTime,
+          special_requests: appointmentData.specialRequests,
+          location: appointmentData.location || '123 Main St, San Francisco, CA',
+          payment_method: appointmentData.paymentMethod || 'Credit Card',
+          credits_used: appointmentData.creditsUsed || 1,
+          status: 'scheduled'
+        })
+        .select()
+        .single();
 
-      // Deduct credit
-      user.credits -= 1;
+      if (error) throw error;
 
-      resolve(newAppointment.id);
-    });
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      throw error;
+    }
   }
 
-  // Submit a review for an appointment
-  static submitReview(appointmentId: string, reviewData: {
-    rating: number;
-    text: string;
-    photos: string[];
-  }): boolean {
-    const appointment = this.appointments.find(apt => apt.id === appointmentId);
-    if (!appointment) {
-      console.error('Appointment not found:', appointmentId);
-      return false;
+  /**
+   * Update an existing appointment
+   */
+  static async updateAppointment(
+    appointmentId: string,
+    updateData: UpdateAppointmentData
+  ): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update(updateData)
+        .eq('id', appointmentId)
+        .eq('user_id', user.id) // Ensure user can only update their own appointments
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      throw error;
     }
-
-    if (appointment.status !== 'completed') {
-      console.error('Can only review completed appointments');
-      return false;
-    }
-
-    const user = this.users[appointment.userId];
-    if (!user) {
-      console.error('User not found:', appointment.userId);
-      return false;
-    }
-
-    const review: Review = {
-      id: `review-${Date.now()}`,
-      appointmentId: appointment.id,
-      customerId: appointment.userId,
-      customerName: user.name,
-      barberId: appointment.barberId,
-      rating: reviewData.rating,
-      text: reviewData.text,
-      photos: reviewData.photos,
-      date: new Date().toISOString().split('T')[0],
-      service: appointment.service,
-    };
-
-    // Update appointment with review
-    appointment.review = review;
-    appointment.rating = reviewData.rating;
-
-    console.log('Review submitted:', review);
-    return true;
   }
 
-  // Get reviews for a specific barber
-  static getBarberReviews(barberId: string): Review[] {
-    return this.appointments
-      .filter(apt => apt.barberId === barberId && apt.review)
-      .map(apt => apt.review!)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  /**
+   * Cancel an appointment
+   */
+  static async cancelAppointment(appointmentId: string): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled' })
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      throw error;
+    }
   }
 
-  // Get barber rating and review count
-  static getBarberStats(barberId: string): { rating: number; reviewCount: number } {
-    const reviews = this.getBarberReviews(barberId);
-    if (reviews.length === 0) {
-      return { rating: 0, reviewCount: 0 };
+  /**
+   * Submit a review for an appointment
+   */
+  static async submitReview(
+    appointmentId: string,
+    rating: number,
+    reviewText?: string,
+    reviewPhotoUrl?: string
+  ): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          rating,
+          review_text: reviewText,
+          review_photo_url: reviewPhotoUrl
+        })
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .eq('status', 'completed') // Only allow reviews for completed appointments
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      throw error;
     }
+  }
 
-    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-    const averageRating = totalRating / reviews.length;
+  /**
+   * Get upcoming appointments for the current user
+   */
+  static async getUpcomingAppointments(): Promise<Appointment[]> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
 
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'scheduled')
+        .gte('appointment_date', today)
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
+
+      if (error) throw error;
+
+      return data?.map(this.mapToAppointment) || [];
+    } catch (error) {
+      console.error('Error fetching upcoming appointments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get past appointments for the current user
+   */
+  static async getPastAppointments(): Promise<Appointment[]> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['completed', 'cancelled', 'no_show'])
+        .lt('appointment_date', today)
+        .order('appointment_date', { ascending: false })
+        .order('appointment_time', { ascending: false });
+
+      if (error) throw error;
+
+      return data?.map(this.mapToAppointment) || [];
+    } catch (error) {
+      console.error('Error fetching past appointments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Map database record to Appointment type
+   */
+  private static mapToAppointment(dbRecord: any): Appointment {
     return {
-      rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
-      reviewCount: reviews.length,
+      id: dbRecord.id,
+      serviceId: dbRecord.service_id,
+      serviceName: dbRecord.service_name,
+      serviceDuration: dbRecord.service_duration,
+      servicePrice: dbRecord.service_price,
+      appointmentDate: dbRecord.appointment_date,
+      appointmentTime: dbRecord.appointment_time,
+      status: dbRecord.status,
+      specialRequests: dbRecord.special_requests,
+      location: dbRecord.location,
+      paymentMethod: dbRecord.payment_method,
+      creditsUsed: dbRecord.credits_used,
+      rating: dbRecord.rating,
+      reviewText: dbRecord.review_text,
+      reviewPhotoUrl: dbRecord.review_photo_url,
+      barberId: dbRecord.barber_id,
+      createdAt: dbRecord.created_at,
+      updatedAt: dbRecord.updated_at
     };
-  }
-
-  // Get barber information by ID
-  static getBarberInfo(barberId: string): { id: string; name: string; avatar: string } | null {
-    return this.barbers[barberId] || null;
   }
 }

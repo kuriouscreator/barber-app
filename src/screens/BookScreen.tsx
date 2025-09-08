@@ -64,6 +64,23 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     }, delay);
   };
 
+  // Reset form to initial state
+  const resetForm = () => {
+    setSelectedService(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setAvailableTimes([]);
+    setSpecialRequests('');
+    setSelectedRequestTags([]);
+    setSmsReminder(true);
+    setEmailConfirmation(true);
+    
+    // Scroll back to top
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }, 100);
+  };
+
   // Handle reschedule and rebook parameters
   const rescheduleAppointment = route?.params?.rescheduleAppointment;
   const rebookAppointment = route?.params?.rebookAppointment;
@@ -71,7 +88,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
   const isRebooking = !!rebookAppointment;
   const appointmentData = rescheduleAppointment || rebookAppointment;
 
-  // Pre-fill form for rescheduling or rebooking
+  // Pre-fill form for rescheduling or rebooking, or reset for new booking
   useEffect(() => {
     if (appointmentData) {
       // Find matching service
@@ -90,6 +107,9 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
         setSelectedDate(appointmentData.currentDate);
         setSelectedTime(appointmentData.currentTime);
       }
+    } else {
+      // Reset form for new booking
+      resetForm();
     }
   }, [appointmentData, isRescheduling]);
 
@@ -274,7 +294,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     hasSpecialRequests: specialRequests.trim() || selectedRequestTags.length > 0,
   });
 
-  const handleBook = () => {
+  const handleBook = async () => {
     if (!selectedService || !selectedDate || !selectedTime) {
       Alert.alert('Error', 'Please select a service, date, and time');
       return;
@@ -288,25 +308,32 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     const service = mockServices.find(s => s.id === selectedService);
     if (!service) return;
 
-    const newAppointment = {
-      id: Date.now().toString(),
-      userId: state.user?.id || '1',
-      barberId: mockBarber.id,
-      date: selectedDate,
-      time: selectedTime,
-      service: service.name,
-      status: 'scheduled' as const,
+    const appointmentData = {
+      serviceId: service.id,
+      serviceName: service.name,
+      serviceDuration: service.duration,
+      servicePrice: service.price,
+      appointmentDate: selectedDate,
+      appointmentTime: selectedTime,
+      specialRequests: specialRequests,
+      location: '123 Main St, San Francisco, CA',
+      paymentMethod: 'Credit Card',
+      creditsUsed: 1,
     };
 
-    bookAppointment(newAppointment);
+    try {
+      await bookAppointment(appointmentData);
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      Alert.alert('Error', 'Failed to book appointment. Please try again.');
+      return;
+    }
     
     Alert.alert(
       'Appointment Booked!',
       `Your ${service.name} is scheduled for ${new Date(selectedDate).toLocaleDateString()} at ${selectedTime}`,
       [{ text: 'OK', onPress: () => {
-        setSelectedService(null);
-        setSelectedDate(null);
-        setSelectedTime(null);
+        resetForm();
         // Navigate to Appointments tab
         navigation.navigate('Appointments');
       }}]
