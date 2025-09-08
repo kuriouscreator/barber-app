@@ -19,6 +19,8 @@ import AppointmentsScreen from '../screens/AppointmentsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AdminScreen from '../screens/AdminScreen';
 import BarberProfileScreen from '../screens/BarberProfileScreen';
+import BarberDashboardScreen from '../screens/BarberDashboardScreen';
+import BarberWeeklyScheduleScreen from '../screens/BarberWeeklyScheduleScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -38,11 +40,17 @@ const MainTabNavigator = () => {
     } else if (route.name === 'Book') {
       iconName = focused ? 'add-circle' : 'add-circle-outline';
     } else if (route.name === 'Appointments') {
-      iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
+      // For barbers, this is the Schedule tab
+      iconName = isBarber 
+        ? (focused ? 'calendar' : 'calendar-outline')
+        : (focused ? 'checkmark-circle' : 'checkmark-circle-outline');
     } else if (route.name === 'Profile') {
       iconName = focused ? 'person' : 'person-outline';
     } else if (route.name === 'Admin') {
-      iconName = focused ? 'settings' : 'settings-outline';
+      // For barbers, this is the Services tab
+      iconName = isBarber 
+        ? (focused ? 'cut' : 'cut-outline')
+        : (focused ? 'settings' : 'settings-outline');
     } else {
       iconName = 'help-outline';
     }
@@ -113,7 +121,7 @@ const MainTabNavigator = () => {
     >
       <Tab.Screen 
         name="Home" 
-        component={HomeScreen} 
+        component={isBarber ? BarberDashboardScreen : HomeScreen} 
         options={{ title: 'Home' }}
       />
       {!isBarber && (
@@ -130,18 +138,25 @@ const MainTabNavigator = () => {
           options={{ title: 'Appointments' }}
         />
       )}
+      {isBarber && (
+        <Tab.Screen 
+          name="Appointments" 
+          component={BarberWeeklyScheduleScreen} 
+          options={{ title: 'Schedule' }}
+        />
+      )}
+      {isBarber && (
+        <Tab.Screen 
+          name="Admin" 
+          component={AdminScreen} 
+          options={{ title: 'Services' }}
+        />
+      )}
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen} 
         options={{ title: 'Profile' }}
       />
-      {isBarber && (
-        <Tab.Screen 
-          name="Admin" 
-          component={AdminScreen} 
-          options={{ title: 'Admin' }}
-        />
-      )}
     </Tab.Navigator>
   );
 };
