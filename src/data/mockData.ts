@@ -4,7 +4,7 @@ export const mockSubscriptions: Subscription[] = [
   {
     id: '1',
     name: 'Basic',
-    price: 29.99,
+    price: 45,
     credits: 1,
     duration: 'monthly',
     description: '1 haircut per month',
@@ -12,18 +12,18 @@ export const mockSubscriptions: Subscription[] = [
   {
     id: '2',
     name: 'Premium',
-    price: 79.99,
-    credits: 3,
+    price: 80,
+    credits: 2,
     duration: 'monthly',
-    description: '3 haircuts per month',
+    description: '2 haircuts per month',
   },
   {
     id: '3',
-    name: 'Elite',
-    price: 149.99,
-    credits: 6,
+    name: 'VIP',
+    price: 120,
+    credits: 4,
     duration: 'monthly',
-    description: '6 haircuts per month',
+    description: '4 haircuts per month',
   },
 ];
 

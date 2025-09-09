@@ -54,7 +54,7 @@ const formatAppointmentDate = (dateString: string): string => {
 const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const { state, cancelAppointment } = useApp();
   const { user, appointments } = state;
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'canceled'>('upcoming');
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedAppointmentForReview, setSelectedAppointmentForReview] = useState<any>(null);
 
@@ -69,9 +69,12 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   const pastAppointments = appointments.filter(apt => {
     const appointmentDate = apt.appointmentDate || apt.date;
     return apt.status === 'completed' || 
-           apt.status === 'cancelled' || 
            apt.status === 'no_show' ||
            (apt.status === 'scheduled' && appointmentDate && new Date(appointmentDate) < new Date());
+  });
+
+  const canceledAppointments = appointments.filter(apt => {
+    return apt.status === 'cancelled';
   });
 
   const handleReschedule = (appointmentId: string) => {
@@ -118,7 +121,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleRebook = (appointmentId: string) => {
-    const appointment = pastAppointments.find(apt => apt.id === appointmentId);
+    const appointment = [...pastAppointments, ...canceledAppointments].find(apt => apt.id === appointmentId);
     if (appointment) {
       // Mock barber info for now
       const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
@@ -192,7 +195,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
     });
   };
 
-  const renderAppointmentCard = (appointment: any, isUpcoming: boolean) => {
+  const renderAppointmentCard = (appointment: any, isUpcoming: boolean, isCanceled: boolean = false) => {
     // Mock barber info and stats for now
     const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
     const barberStats = { rating: 4.8, reviewCount: 0 }; // Will be updated with real data from ReviewService
@@ -214,7 +217,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
         onReview={handleReview}
         onRebook={handleRebook}
         onViewBarberProfile={handleViewBarberProfile}
-        showReviewButton={!appointment.rating} // Show review button only if not rated yet
+        showReviewButton={!appointment.rating && !isCanceled} // Don't show review button for canceled appointments
         barberId={appointment.barberId}
         barberRating={barberStats.rating}
         barberReviewCount={barberStats.reviewCount}
@@ -244,6 +247,14 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
               Past ({pastAppointments.length})
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'canceled' && styles.activeTab]}
+            onPress={() => setActiveTab('canceled')}
+          >
+            <Text style={[styles.tabText, activeTab === 'canceled' && styles.activeTabText]}>
+              Canceled ({canceledAppointments.length})
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Appointments List */}
@@ -255,12 +266,20 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.emptyStateText}>No upcoming appointments</Text>
             </View>
           )
-        ) : (
+        ) : activeTab === 'past' ? (
           pastAppointments.length > 0 ? (
             pastAppointments.map(appointment => renderAppointmentCard(appointment, false))
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No past appointments</Text>
+            </View>
+          )
+        ) : (
+          canceledAppointments.length > 0 ? (
+            canceledAppointments.map(appointment => renderAppointmentCard(appointment, false, true))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No canceled appointments</Text>
             </View>
           )
         )}
@@ -302,8 +321,8 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     alignItems: 'center',
   },
@@ -311,9 +330,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent.primary,
   },
   tabText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
     color: colors.text.secondary,
+    textAlign: 'center',
   },
   activeTabText: {
     color: colors.white,

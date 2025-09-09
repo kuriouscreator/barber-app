@@ -31,6 +31,16 @@
           "action": "VIEW",
           "data": [{ "scheme": "barbercuts", "host": "auth", "pathPrefix": "/callback" }],
           "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "barbercuts", "host": "billing", "pathPrefix": "/success" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "barbercuts", "host": "billing", "pathPrefix": "/cancel" }],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },

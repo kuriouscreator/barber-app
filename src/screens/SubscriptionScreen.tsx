@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,15 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types';
 import { useApp } from '../context/AppContext';
-import { mockSubscriptions } from '../data/mockData';
+import { BillingService, Plan } from '../services/billing';
+import { billingLinkManager } from '../lib/billingLinking';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
@@ -26,37 +28,78 @@ interface Props {
 
 const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const { state, dispatch } = useApp();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { state, refreshSubscription } = useApp();
+
+  useEffect(() => {
+    loadPlans();
+    
+    // Set up deep link handler for billing success/cancel
+    const unsubscribe = billingLinkManager.addHandler({
+      onSuccess: (sessionId) => {
+        console.log('Subscription activated:', sessionId);
+        Alert.alert(
+          'Success!',
+          'Your subscription has been activated! You can now start booking haircuts.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      },
+      onCancel: () => {
+        console.log('Subscription cancelled');
+        setIsProcessing(false);
+      },
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadPlans = async () => {
+    try {
+      setLoading(true);
+      const plansData = await BillingService.getPlans();
+      setPlans(plansData);
+    } catch (error) {
+      console.error('Error loading plans:', error);
+      Alert.alert('Error', 'Failed to load subscription plans');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectPlan = (planId: string) => {
     setSelectedPlan(planId);
   };
 
-  const handlePaymentSuccess = (transactionId: string) => {
-    const selectedSubscription = mockSubscriptions.find(plan => plan.id === selectedPlan);
-    if (selectedSubscription && state.user) {
-      // Update user with subscription and credits
-      const updatedUser = {
-        ...state.user,
-        subscription: selectedSubscription,
-        credits: selectedSubscription.credits,
-      };
-      dispatch({ type: 'SET_USER', payload: updatedUser });
-      dispatch({ type: 'SET_SUBSCRIPTIONS', payload: mockSubscriptions });
-      
-      Alert.alert(
-        'Success!',
-        `You've successfully subscribed to the ${selectedSubscription.name} plan!`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+  const handlePaymentSuccess = async (transactionId: string) => {
+    const selectedPlanData = plans.find(plan => plan.id === selectedPlan);
+    if (selectedPlanData) {
+      try {
+        setIsProcessing(true);
+        await BillingService.openNativeCheckout(selectedPlanData.stripe_price_id);
+        // Realtime will automatically update the subscription data
+        Alert.alert('Success', 'Subscription activated successfully! You can now start booking haircuts.');
+        navigation.goBack();
+      } catch (error) {
+        console.error('Error opening checkout:', error);
+        if (error.message === 'Payment was cancelled') {
+          // Don't show error for user cancellation
+          return;
+        }
+        Alert.alert('Error', 'Failed to process payment. Please try again.');
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
   const handlePaymentError = (error: string) => {
     console.error('Payment error:', error);
+    setIsProcessing(false);
   };
 
-  const renderPlanCard = (plan: typeof mockSubscriptions[0]) => {
+  const renderPlanCard = (plan: Plan) => {
     const isSelected = selectedPlan === plan.id;
     
     if (isSelected) {
@@ -76,16 +119,12 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
                 {plan.name}
               </Text>
               <Text style={styles.planPriceSelected}>
-                ${plan.price}
+                per {plan.interval}
               </Text>
             </View>
             
-            <Text style={styles.planDurationSelected}>
-              per {plan.duration}
-            </Text>
-            
             <Text style={styles.planDescriptionSelected}>
-              {plan.description}
+              {plan.cuts_included_per_period} haircut{plan.cuts_included_per_period > 1 ? 's' : ''} included
             </Text>
             
             <View style={styles.planFeatures}>
@@ -96,7 +135,7 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
                   color={colors.white} 
                 />
                 <Text style={styles.featureTextSelected}>
-                  {plan.credits} haircut{plan.credits > 1 ? 's' : ''} included
+                  {plan.cuts_included_per_period} haircut{plan.cuts_included_per_period > 1 ? 's' : ''} included
                 </Text>
               </View>
               <View style={styles.feature}>
@@ -140,16 +179,12 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
             {plan.name}
           </Text>
           <Text style={styles.planPrice}>
-            ${plan.price}
+            per {plan.interval}
           </Text>
         </View>
         
-        <Text style={styles.planDuration}>
-          per {plan.duration}
-        </Text>
-        
         <Text style={styles.planDescription}>
-          {plan.description}
+          {plan.cuts_included_per_period} haircut{plan.cuts_included_per_period > 1 ? 's' : ''} included
         </Text>
         
         <View style={styles.planFeatures}>
@@ -160,7 +195,7 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
               color={colors.accent.success} 
             />
             <Text style={styles.featureText}>
-              {plan.credits} haircut{plan.credits > 1 ? 's' : ''} included
+              {plan.cuts_included_per_period} haircut{plan.cuts_included_per_period > 1 ? 's' : ''} included
             </Text>
           </View>
           <View style={styles.feature}>
@@ -188,6 +223,17 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent.primary} />
+          <Text style={styles.loadingText}>Loading plans...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -199,7 +245,7 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         <View style={styles.plansContainer}>
-          {mockSubscriptions.map(renderPlanCard)}
+          {plans.map(renderPlanCard)}
         </View>
 
         <View style={styles.footer}>
@@ -213,11 +259,11 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.buttonContainer}>
         {selectedPlan && (
           <PaymentButton
-            amount={mockSubscriptions.find(plan => plan.id === selectedPlan)?.price || 0}
-            description={`${mockSubscriptions.find(plan => plan.id === selectedPlan)?.name} subscription`}
+            amount={0} // Stripe handles pricing
+            description={`${plans.find(plan => plan.id === selectedPlan)?.name} subscription`}
             onSuccess={handlePaymentSuccess}
             onError={handlePaymentError}
-            disabled={!selectedPlan}
+            disabled={!selectedPlan || isProcessing}
           />
         )}
       </View>
@@ -373,6 +419,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderTopColor: colors.border.light,
     borderTopWidth: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
   },
 });
 

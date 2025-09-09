@@ -55,14 +55,10 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
 
   const getButtonText = () => {
     if (isProcessing) {
-      return 'Processing...';
+      return 'Opening Checkout...';
     }
     
-    if (Platform.OS === 'ios') {
-      return `Pay with Apple Pay • ${PaymentService.formatAmount(amount)}`;
-    } else {
-      return `Pay with Google Pay • ${PaymentService.formatAmount(amount)}`;
-    }
+    return `Subscribe with Stripe`;
   };
 
   const getButtonIcon = () => {
@@ -70,11 +66,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
       return 'hourglass-outline';
     }
     
-    if (Platform.OS === 'ios') {
-      return 'logo-apple';
-    } else {
-      return 'logo-google';
-    }
+    return 'card-outline';
   };
 
   return (

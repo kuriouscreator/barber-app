@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Appointment } from '../types';
+import { BillingService } from './billing';
 
 export interface CreateAppointmentData {
   serviceId: string;
@@ -184,6 +185,57 @@ export class AppointmentService {
   }
 
   /**
+   * Complete an appointment and track cuts usage
+   */
+  static async completeAppointment(appointmentId: string): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // First, check if appointment exists and is scheduled
+      const { data: appointmentData, error: fetchError } = await supabase
+        .from('appointments')
+        .select('status')
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      if (appointmentData.status !== 'scheduled') {
+        throw new Error('Appointment is not in scheduled status');
+      }
+
+      // Update appointment status to completed
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status: 'completed'
+        })
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Track cuts usage for subscription billing
+      try {
+        await BillingService.addCutUsage(appointmentId);
+        console.log('Cut usage tracked successfully');
+      } catch (billingError) {
+        console.warn('Failed to track cut usage:', billingError);
+        // Don't fail the appointment completion if billing tracking fails
+      }
+
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error completing appointment:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Submit a review for an appointment
    */
   static async submitReview(
@@ -196,7 +248,7 @@ export class AppointmentService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // First, mark the appointment as completed if it's still scheduled
+      // First, check the appointment status
       const { data: appointmentData, error: fetchError } = await supabase
         .from('appointments')
         .select('status')
@@ -205,6 +257,11 @@ export class AppointmentService {
         .single();
 
       if (fetchError) throw fetchError;
+
+      // Prevent reviews for canceled appointments
+      if (appointmentData.status === 'cancelled') {
+        throw new Error('Cannot submit review for a canceled appointment');
+      }
 
       // Update appointment with review and mark as completed
       const { data, error } = await supabase
@@ -221,6 +278,15 @@ export class AppointmentService {
         .single();
 
       if (error) throw error;
+
+      // Track cuts usage for subscription billing
+      try {
+        await BillingService.addCutUsage(appointmentId);
+        console.log('Cut usage tracked successfully');
+      } catch (billingError) {
+        console.warn('Failed to track cut usage:', billingError);
+        // Don't fail the review submission if billing tracking fails
+      }
 
       return this.mapToAppointment(data);
     } catch (error) {

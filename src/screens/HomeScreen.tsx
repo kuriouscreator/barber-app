@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
 import { AppointmentService } from '../services/AppointmentService';
+import { BillingService } from '../services/billing';
 
 const formatAppointmentDate = (dateString: string): string => {
   const today = new Date();
@@ -54,10 +55,16 @@ interface Props {
 }
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const { state, cancelAppointment } = useApp();
-  const { user, appointments } = state;
+  const { state, cancelAppointment, refreshSubscription } = useApp();
+  const { user, appointments, userSubscription } = state;
   const isBarber = user?.role === 'barber';
-  const [userCredits, setUserCredits] = useState(2);
+  const [subscriptionData, setSubscriptionData] = useState({
+    planName: 'No Plan',
+    price: '',
+    cutsRemaining: 0,
+    daysLeft: 0,
+    renewsOn: '',
+  });
 
   // Filter upcoming appointments from AppContext
   const upcomingAppointments = appointments.filter(apt => {
@@ -68,20 +75,48 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   });
 
   useEffect(() => {
-    // Load user credits
-    if (user?.id) {
-      setUserCredits(user.credits || 2);
+    // Load subscription data
+    if (user?.id && !isBarber) {
+      loadSubscriptionData();
     }
-  }, [user?.id]);
+  }, [user?.id, userSubscription]);
 
-  // Mock data for the new design
-  const subscriptionData = {
-    planName: 'Premium Plan',
-    price: '$79/month',
-    cutsRemaining: userCredits,
-    daysLeft: 15,
-    renewsOn: 'Jan 15, 2025',
+  const loadSubscriptionData = async () => {
+    try {
+      console.log('🏠 HomeScreen: Loading subscription data...');
+      console.log('🏠 HomeScreen: userSubscription from context:', userSubscription);
+      
+      if (userSubscription) {
+        const cutsRemaining = BillingService.calculateCutsRemaining(userSubscription);
+        const daysLeft = BillingService.calculateDaysLeft(userSubscription);
+        const renewsOn = new Date(userSubscription.current_period_end).toLocaleDateString();
+        
+        const subscriptionDisplayData = {
+          planName: userSubscription.plan_name,
+          price: `per ${userSubscription.stripe_price_id.includes('month') ? 'month' : 'year'}`,
+          cutsRemaining,
+          daysLeft,
+          renewsOn,
+        };
+        
+        console.log('🏠 HomeScreen: Setting subscription data:', subscriptionDisplayData);
+        setSubscriptionData(subscriptionDisplayData);
+      } else {
+        // No subscription - show default state
+        console.log('🏠 HomeScreen: No subscription found, showing default state');
+        setSubscriptionData({
+          planName: 'No Active Plan',
+          price: 'Choose a plan',
+          cutsRemaining: 0,
+          daysLeft: 0,
+          renewsOn: '',
+        });
+      }
+    } catch (error) {
+      console.error('❌ HomeScreen: Error loading subscription data:', error);
+    }
   };
+
 
   // Transform appointment data for display
   const displayAppointments = upcomingAppointments.map(apt => ({
@@ -103,6 +138,13 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleViewSubscription = () => {
+    const parentNavigation = navigation.getParent();
+    if (parentNavigation) {
+      parentNavigation.navigate('Subscription');
+    }
+  };
+
+  const handleUpgradePlan = () => {
     const parentNavigation = navigation.getParent();
     if (parentNavigation) {
       parentNavigation.navigate('Subscription');
@@ -169,28 +211,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
 
 
+  // Check if user should see upgrade button (basic or premium plans)
+  const shouldShowUpgradeButton = !isBarber && userSubscription && 
+    (userSubscription.plan_name.toLowerCase().includes('basic') || 
+     userSubscription.plan_name.toLowerCase().includes('premium'));
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
 
-        {/* Subscription Card */}
-        {!isBarber && (
-          <TouchableOpacity onPress={handleViewSubscription} style={styles.subscriptionCard}>
-            <View style={styles.subscriptionContent}>
-              <View style={styles.subscriptionHeader}>
-                <Text style={styles.subscriptionPlanName}>{subscriptionData.planName}</Text>
-                <Text style={styles.subscriptionPrice}>{subscriptionData.price}</Text>
-              </View>
-              
-            </View>
-            
-            <View style={styles.subscriptionChevron}>
-              <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Stats Cards */}
+        {/* Stats Cards - Moved to top */}
         {!isBarber && (
           <View style={styles.statsSection}>
             <View style={styles.statsRow}>
@@ -210,23 +240,38 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.quickActionsSection}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActionsContent}>
-            <TouchableOpacity onPress={handleBookAppointment}>
-            <LinearGradient 
-              start={{x:0, y:0}}
-              end={{x:0, y:1}}
-              colors={["#000080", "#1D4ED8"]}
-              style={styles.bookServiceCard}
-            >
-              <View style={styles.bookServiceLeft}>
-                <Ionicons name="add-circle" size={24} color={colors.white} />
-                <View style={styles.bookServiceText}>
-                  <Text style={styles.bookServiceTitle}>Book Service</Text>
-                  <Text style={styles.bookServiceSubtitle}>Schedule your next cut</Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.white} />
-            </LinearGradient>
-          </TouchableOpacity>
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity onPress={handleBookAppointment} style={styles.quickActionButton}>
+                <LinearGradient 
+                  start={{x:0, y:0}}
+                  end={{x:0, y:1}}
+                  colors={["#000080", "#1D4ED8"]}
+                  style={styles.bookServiceCard}
+                >
+                  <View style={styles.bookServiceLeft}>
+                    <View style={styles.bookServiceText}>
+                      <Text style={styles.bookServiceTitle}>Book Service</Text>
+                      <Text style={styles.bookServiceSubtitle}>Schedule your next cut</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.white} />
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {shouldShowUpgradeButton && (
+                <TouchableOpacity onPress={handleUpgradePlan} style={styles.quickActionButton}>
+                  <View style={styles.upgradePlanCard}>
+                    <View style={styles.upgradePlanLeft}>
+                      <View style={styles.upgradePlanText}>
+                        <Text style={styles.upgradePlanTitle}>Upgrade Plan</Text>
+                        <Text style={styles.upgradePlanSubtitle}>Get more cuts</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
 
@@ -273,62 +318,24 @@ const styles = StyleSheet.create({
   },
   
 
-  // Subscription card styles
-  subscriptionCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: colors.border.light,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingVertical: 17,
-    marginBottom: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#0000000D',
-    shadowOpacity: 0.1,
-    shadowOffset: {
-      width: 0,
-      height: 1
-    },
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  subscriptionContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  subscriptionHeader: {
-    marginHorizontal: 17,
-  },
-  subscriptionPlanName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 4,
-  },
-  subscriptionPrice: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    marginBottom: 1,
-    marginRight: 52,
-  },
-  subscriptionChevron: {
-    marginRight: 17,
-  },
-  subscriptionFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-  },
 
   // Quick actions styles
   quickActionsSection: {
     marginBottom: spacing.xl,
   },
   quickActionsContent: {
-    marginTop: spacing.lg,
+    marginTop: 16,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    height: 80,
   },
   sectionTitle: {
-    fontSize: typography.fontSize.xl,
+    fontSize: 16,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
   },
@@ -338,6 +345,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    height: '100%',
     shadowColor: '#0000000D',
     shadowOpacity: 0.1,
     shadowOffset: {
@@ -353,11 +361,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bookServiceText: {
-    marginLeft: spacing.sm,
+    // Removed marginLeft since we removed the icon
   },
   bookServiceTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.white,
     marginBottom: spacing.xs,
   },
@@ -365,6 +373,43 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.white,
     opacity: 0.9,
+  },
+  upgradePlanCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.border.light,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 17,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: '100%',
+    shadowColor: '#0000000D',
+    shadowOpacity: 0.1,
+    shadowOffset: {
+      width: 0,
+      height: 1
+    },
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  upgradePlanLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  upgradePlanText: {
+    // Removed marginLeft since we removed the icon
+  },
+  upgradePlanTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  upgradePlanSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
   },
 
   // Appointments styles
@@ -375,7 +420,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: 20,
   },
   viewAllText: {
     fontSize: typography.fontSize.sm,

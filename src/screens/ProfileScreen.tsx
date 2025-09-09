@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../hooks/useAuth';
+import { BillingService } from '../services/billing';
 import { uploadAvatar } from '../services/storage';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -29,96 +30,113 @@ interface Props {
 }
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
-  const { state, logout } = useApp();
-  const { user, appointments } = state;
+  const { state, logout, refreshSubscription } = useApp();
+  const { user, appointments, userSubscription } = state;
   const { user: authUser } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const isBarber = user?.role === 'barber';
+  const [profileData, setProfileData] = useState({
+    subscription: {
+      planName: 'No Plan',
+      price: '',
+      cutsRemaining: 0,
+      daysLeft: 0,
+      renewsOn: '',
+    },
+    usage: {
+      used: 0,
+      total: 0,
+      cuts: [] as Array<{ service: string; date: string; status: string }>,
+    },
+    paymentMethod: {
+      brand: 'Visa',
+      last4: '4532',
+      expires: '12/26',
+    },
+  });
 
   // New state for preferences
   const [appointmentReminders, setAppointmentReminders] = useState<boolean>(true);
   const [marketingEmails, setMarketingEmails] = useState<boolean>(false);
   const [autoRebook, setAutoRebook] = useState<boolean>(true);
 
-  // Mock data for the new design
-  const profileData = {
-    subscription: {
-      planName: 'Premium Plan',
-      price: '$79/month',
-      cutsRemaining: 2,
-      daysLeft: 15,
-      renewsOn: 'Jan 15, 2025',
-    },
-    usage: {
-      used: 2,
-      total: 4,
-      cuts: [
-        { service: 'Classic Haircut', date: 'Dec 28, 2024', status: 'Used' },
-        { service: 'Beard Trim + Cut', date: 'Dec 15, 2024', status: 'Used' },
-      ]
-    },
-    upcomingAppointments: [
-      {
-        id: '1',
-        shopName: "Mike's Barbershop",
-        service: 'Classic Haircut',
-        date: 'Today',
-        time: '2:30 PM',
-        location: 'Downtown Plaza',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-        isToday: true,
-      },
-        {
-          id: '2',
-          shopName: "Mike's Barbershop",
-          service: 'Beard Trim + Haircut',
-          date: 'Jan 10',
-          time: '11:00 AM',
-          location: 'Downtown Plaza',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-          isToday: false,
-        },
-    ],
-    pastAppointments: [
-        {
-          id: '3',
-          shopName: "Mike's Barbershop",
-          service: 'Classic Haircut',
-          date: 'Dec 28, 2024',
-          time: '2:30 PM',
-          location: 'Downtown Plaza',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-          rating: null, // Not reviewed yet
-          isReviewed: false,
-        },
-        {
-          id: '4',
-          shopName: "Mike's Barbershop",
-          service: 'Beard Trim + Haircut',
-          date: 'Dec 15, 2024',
-          time: '11:00 AM',
-          location: 'Downtown Plaza',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-          rating: 4,
-          isReviewed: true,
-        },
-        {
-          id: '5',
-          shopName: "Mike's Barbershop",
-          service: 'Fade Cut',
-          date: 'Dec 1, 2024',
-          time: '3:15 PM',
-          location: 'Downtown Plaza',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-          rating: 5,
-          isReviewed: true,
-        },
-    ],
-    paymentMethod: {
-      brand: 'Visa',
-      last4: '4532',
-      expires: '12/26',
-    },
+  useEffect(() => {
+    // Load subscription data
+    if (user?.id && !isBarber) {
+      loadSubscriptionData();
+    }
+  }, [user?.id, userSubscription]);
+
+  const loadSubscriptionData = async () => {
+    try {
+      console.log('👤 ProfileScreen: Loading subscription data...');
+      console.log('👤 ProfileScreen: userSubscription from context:', userSubscription);
+      
+      if (userSubscription) {
+        const cutsRemaining = BillingService.calculateCutsRemaining(userSubscription);
+        const daysLeft = BillingService.calculateDaysLeft(userSubscription);
+        const renewsOn = new Date(userSubscription.current_period_end).toLocaleDateString();
+        
+        // Get past appointments that used cuts
+        const pastAppointments = appointments.filter(apt => 
+          apt.status === 'completed' && 
+          new Date(apt.appointmentDate || apt.date || '') < new Date()
+        );
+        
+        const usageCuts = pastAppointments.slice(0, 5).map(apt => ({
+          service: apt.serviceName || apt.service || 'Haircut',
+          date: new Date(apt.appointmentDate || apt.date || '').toLocaleDateString(),
+          status: 'Used'
+        }));
+        
+        const profileDisplayData = {
+          subscription: {
+            planName: userSubscription.plan_name,
+            price: `per ${userSubscription.stripe_price_id.includes('month') ? 'month' : 'year'}`,
+            cutsRemaining,
+            daysLeft,
+            renewsOn,
+          },
+          usage: {
+            used: userSubscription.cuts_used,
+            total: userSubscription.cuts_included,
+            cuts: usageCuts,
+          },
+          paymentMethod: {
+            brand: 'Visa',
+            last4: '4532',
+            expires: '12/26',
+          },
+        };
+        
+        console.log('👤 ProfileScreen: Setting profile data:', profileDisplayData);
+        setProfileData(profileDisplayData);
+      } else {
+        // No subscription
+        console.log('👤 ProfileScreen: No subscription found, showing default state');
+        setProfileData({
+          subscription: {
+            planName: 'No Active Plan',
+            price: 'Choose a plan',
+            cutsRemaining: 0,
+            daysLeft: 0,
+            renewsOn: '',
+          },
+          usage: {
+            used: 0,
+            total: 0,
+            cuts: [],
+          },
+          paymentMethod: {
+            brand: 'Visa',
+            last4: '4532',
+            expires: '12/26',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('❌ ProfileScreen: Error loading subscription data:', error);
+    }
   };
 
   // Helper functions
@@ -182,7 +200,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleUpgradePlan = () => {
-    console.log('Upgrade plan');
+    if (navigation) {
+      const parentNavigation = navigation.getParent();
+      if (parentNavigation) {
+        parentNavigation.navigate('Subscription');
+      }
+    }
   };
 
   const handlePausePlan = () => {
