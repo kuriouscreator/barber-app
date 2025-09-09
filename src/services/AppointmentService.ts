@@ -56,6 +56,23 @@ export class AppointmentService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      // Check if user can book an appointment (has remaining cuts)
+      const { data: canBook, error: canBookError } = await supabase
+        .rpc('can_user_book_appointment', { p_user_id: user.id });
+
+      if (canBookError) {
+        console.error('Error checking if user can book:', canBookError);
+        throw new Error('Failed to validate booking eligibility');
+      }
+
+      if (!canBook) {
+        // Get remaining cuts for better error message
+        const { data: remainingCuts } = await supabase
+          .rpc('get_user_remaining_cuts', { p_user_id: user.id });
+        
+        throw new Error(`Cannot book appointment: You have ${remainingCuts || 0} cuts remaining. Please upgrade your plan or cancel an existing appointment.`);
+      }
+
       // In this single-barber app, all customers are automatically assigned to the one barber
       // Find the barber profile (there should only be one)
       console.log('Looking for barber profile...');
@@ -117,6 +134,7 @@ export class AppointmentService {
           location: appointmentData.location || '123 Main St, San Francisco, CA',
           payment_method: appointmentData.paymentMethod || 'Credit Card',
           credits_used: appointmentData.creditsUsed || 1,
+          cuts_used: 1, // Each appointment uses 1 cut
           status: 'scheduled'
         })
         .select()
@@ -162,22 +180,40 @@ export class AppointmentService {
   /**
    * Cancel an appointment
    */
-  static async cancelAppointment(appointmentId: string): Promise<Appointment> {
+  static async cancelAppointment(appointmentId: string): Promise<{ appointment: Appointment; cutsRestored: boolean }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
+      // Use the database function to handle cancellation and cut restoration
+      const { data: cutsRestored, error: cancelError } = await supabase
+        .rpc('handle_appointment_cancellation', { 
+          p_appointment_id: appointmentId, 
+          p_user_id: user.id 
+        });
+
+      if (cancelError) {
+        console.error('Error cancelling appointment:', cancelError);
+        throw new Error('Failed to cancel appointment');
+      }
+
+      // Get the updated appointment
+      const { data: appointment, error: fetchError } = await supabase
         .from('appointments')
-        .update({ status: 'cancelled' })
+        .select('*')
         .eq('id', appointmentId)
         .eq('user_id', user.id)
-        .select()
         .single();
 
-      if (error) throw error;
+      if (fetchError) {
+        console.error('Error fetching cancelled appointment:', fetchError);
+        throw new Error('Failed to fetch cancelled appointment');
+      }
 
-      return this.mapToAppointment(data);
+      return {
+        appointment: this.mapToAppointment(appointment),
+        cutsRestored: cutsRestored || false
+      };
     } catch (error) {
       console.error('Error cancelling appointment:', error);
       throw error;
@@ -348,6 +384,52 @@ export class AppointmentService {
     } catch (error) {
       console.error('Error fetching past appointments:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get user's remaining cuts
+   */
+  static async getRemainingCuts(): Promise<number> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data: remainingCuts, error } = await supabase
+        .rpc('get_user_remaining_cuts', { p_user_id: user.id });
+
+      if (error) {
+        console.error('Error getting remaining cuts:', error);
+        return 0;
+      }
+
+      return remainingCuts || 0;
+    } catch (error) {
+      console.error('Error getting remaining cuts:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Check if user can book an appointment
+   */
+  static async canBookAppointment(): Promise<boolean> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data: canBook, error } = await supabase
+        .rpc('can_user_book_appointment', { p_user_id: user.id });
+
+      if (error) {
+        console.error('Error checking if user can book:', error);
+        return false;
+      }
+
+      return canBook || false;
+    } catch (error) {
+      console.error('Error checking if user can book:', error);
+      return false;
     }
   }
 

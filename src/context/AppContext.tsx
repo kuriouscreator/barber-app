@@ -293,13 +293,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const cancelAppointment = async (appointmentId: string) => {
     try {
-      const appointment = await AppointmentService.cancelAppointment(appointmentId);
-      dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
+      const result = await AppointmentService.cancelAppointment(appointmentId);
+      dispatch({ type: 'UPDATE_APPOINTMENT', payload: result.appointment });
       
       // Clear availability cache so that the freed time slot becomes available immediately
       AvailabilityService.clearCache();
       
-      return appointment;
+      return result.appointment;
     } catch (error) {
       console.error('Error cancelling appointment:', error);
       throw error;

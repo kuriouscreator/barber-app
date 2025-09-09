@@ -20,6 +20,8 @@ import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 import { MainTabParamList, RescheduleAppointment } from '../types';
 import { AvailabilityService } from '../services/AvailabilityService';
+import { AppointmentService } from '../services/AppointmentService';
+import { CutTrackingService } from '../services/CutTrackingService';
 import { supabase } from '../lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -45,6 +47,8 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selectedRequestTags, setSelectedRequestTags] = useState<string[]>([]);
   const [smsReminder, setSmsReminder] = useState<boolean>(true);
   const [emailConfirmation, setEmailConfirmation] = useState<boolean>(true);
+  const [remainingCuts, setRemainingCuts] = useState<number>(0);
+  const [canBook, setCanBook] = useState<boolean>(true);
 
   // Refs for auto-scrolling
   const scrollViewRef = useRef<ScrollView>(null);
@@ -116,6 +120,23 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [appointmentData, isRescheduling]);
 
+  // Load remaining cuts and booking eligibility
+  useEffect(() => {
+    const loadRemainingCuts = async () => {
+      try {
+        const cutStatus = await CutTrackingService.getCutStatus();
+        setRemainingCuts(cutStatus.remainingCuts);
+        setCanBook(cutStatus.canBook);
+      } catch (error) {
+        console.error('Error loading remaining cuts:', error);
+        setRemainingCuts(0);
+        setCanBook(false);
+      }
+    };
+    
+    loadRemainingCuts();
+  }, []);
+
   // Reset time selection when date or service changes
   useEffect(() => {
     const loadAvailableTimes = async () => {
@@ -132,18 +153,29 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     loadAvailableTimes();
   }, [selectedDate, selectedService]);
 
-  // Refresh available times when screen is focused (e.g., after cancellation)
+  // Refresh available times and cut data when screen is focused (e.g., after cancellation)
   useFocusEffect(
     React.useCallback(() => {
-      const refreshAvailableTimes = async () => {
+      const refreshData = async () => {
+        // Refresh available times
         if (selectedDate && selectedService) {
           const times = await generateAvailableTimes();
           setAvailableTimes(times);
           console.log(`Screen focused - refreshed ${times.length} time slots for ${selectedDate}`);
         }
+        
+        // Refresh remaining cuts data
+        try {
+          const cutStatus = await CutTrackingService.getCutStatus();
+          setRemainingCuts(cutStatus.remainingCuts);
+          setCanBook(cutStatus.canBook);
+          console.log(`Screen focused - refreshed cuts data: ${cutStatus.remainingCuts} remaining, can book: ${cutStatus.canBook}`);
+        } catch (error) {
+          console.error('Error refreshing cuts data on focus:', error);
+        }
       };
       
-      refreshAvailableTimes();
+      refreshData();
     }, [selectedDate, selectedService])
   );
 
@@ -317,8 +349,29 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    if (state.user && state.user.credits === 0) {
-      Alert.alert('No Credits', 'You need to purchase a subscription to book appointments');
+    if (!canBook) {
+      // Get more detailed cut status for better error message
+      try {
+        const { status, message } = await CutTrackingService.getCutStatusWithMessage();
+        Alert.alert(
+          'Cannot Book Appointment', 
+          message,
+          [
+            { text: 'View Plans', onPress: () => navigation.navigate('Profile') },
+            { text: 'View Appointments', onPress: () => navigation.navigate('Appointments') },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      } catch (error) {
+        Alert.alert(
+          'No Cuts Remaining', 
+          `You have ${remainingCuts} cuts remaining. Please upgrade your plan or cancel an existing appointment to book a new one.`,
+          [
+            { text: 'View Plans', onPress: () => navigation.navigate('Profile') },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      }
       return;
     }
 
@@ -791,24 +844,26 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.footerTotal}>Free with subscription</Text>
         </View>
         <View style={styles.footerRight}>
-          <Text style={styles.footerLabel}>Credits remaining</Text>
-          <Text style={styles.footerCredits}>{state.user?.credits || 0} of 4</Text>
+          <Text style={styles.footerLabel}>Cuts remaining</Text>
+          <Text style={[styles.footerCredits, { color: remainingCuts > 0 ? colors.text.primary : colors.accent.error }]}>
+            {remainingCuts}
+          </Text>
         </View>
       </View>
 
       {/* Confirm Button */}
       <TouchableOpacity
         onPress={handleBook}
-        disabled={!selectedService || !selectedDate || !selectedTime}
+        disabled={!selectedService || !selectedDate || !selectedTime || !canBook}
       >
         <LinearGradient 
           start={{x:0, y:0}}
           end={{x:0, y:1}}
-          colors={(!selectedService || !selectedDate || !selectedTime) ? ["#CBD5E1", "#94A3B8"] : ["#000080", "#1D4ED8"]}
+          colors={(!selectedService || !selectedDate || !selectedTime || !canBook) ? ["#CBD5E1", "#94A3B8"] : ["#000080", "#1D4ED8"]}
           style={styles.confirmButton}
         >
           <Text style={styles.confirmButtonText}>
-            {isRescheduling ? 'Confirm Reschedule' : isRebooking ? 'Confirm Rebook' : 'Confirm Booking'}
+            {!canBook ? 'No Cuts Remaining' : (isRescheduling ? 'Confirm Reschedule' : isRebooking ? 'Confirm Rebook' : 'Confirm Booking')}
           </Text>
         </LinearGradient>
       </TouchableOpacity>

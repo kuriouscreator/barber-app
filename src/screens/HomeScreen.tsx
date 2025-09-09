@@ -17,6 +17,7 @@ import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
 import { AppointmentService } from '../services/AppointmentService';
 import { BillingService } from '../services/billing';
+import { CutTrackingService } from '../services/CutTrackingService';
 
 const formatAppointmentDate = (dateString: string): string => {
   const today = new Date();
@@ -87,14 +88,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       console.log('🏠 HomeScreen: userSubscription from context:', userSubscription);
       
       if (userSubscription) {
-        const cutsRemaining = BillingService.calculateCutsRemaining(userSubscription);
+        // Use the centralized cut tracking service
+        const cutStatus = await CutTrackingService.getCutStatus();
         const daysLeft = BillingService.calculateDaysLeft(userSubscription);
         const renewsOn = new Date(userSubscription.current_period_end).toLocaleDateString();
         
         const subscriptionDisplayData = {
           planName: userSubscription.plan_name,
           price: `per ${userSubscription.stripe_price_id.includes('month') ? 'month' : 'year'}`,
-          cutsRemaining,
+          cutsRemaining: cutStatus.remainingCuts,
           daysLeft,
           renewsOn,
         };
