@@ -18,6 +18,7 @@ import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../hooks/useAuth';
 import { BillingService } from '../services/billing';
+import { CutTrackingService } from '../services/CutTrackingService';
 import { uploadAvatar } from '../services/storage';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -73,7 +74,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       console.log('👤 ProfileScreen: userSubscription from context:', userSubscription);
       
       if (userSubscription) {
-        const cutsRemaining = BillingService.calculateCutsRemaining(userSubscription);
+        // Use the centralized cut tracking service for accurate data
+        const cutStatus = await CutTrackingService.getCutStatus();
         const daysLeft = BillingService.calculateDaysLeft(userSubscription);
         const renewsOn = new Date(userSubscription.current_period_end).toLocaleDateString();
         
@@ -93,19 +95,19 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           subscription: {
             planName: userSubscription.plan_name,
             price: `per ${userSubscription.stripe_price_id.includes('month') ? 'month' : 'year'}`,
-            cutsRemaining,
+            cutsRemaining: cutStatus.remainingCuts,
             daysLeft,
             renewsOn,
           },
           usage: {
-            used: userSubscription.cuts_used,
-            total: userSubscription.cuts_included,
+            used: cutStatus.usedCuts,
+            total: cutStatus.totalCuts,
             cuts: usageCuts,
           },
           paymentMethod: {
-            brand: 'Visa',
-            last4: '4532',
-            expires: '12/26',
+            brand: 'Visa', // TODO: Get real payment method from Stripe
+            last4: '4532', // TODO: Get real payment method from Stripe
+            expires: '12/26', // TODO: Get real payment method from Stripe
           },
         };
         

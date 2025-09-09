@@ -22,6 +22,8 @@ const SignInScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const {
     signInWithPassword,
@@ -106,7 +108,10 @@ const SignInScreen: React.FC = () => {
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                emailFocused && styles.inputFocused
+              ]}
               value={email}
               onChangeText={setEmail}
               placeholder="Enter your email"
@@ -114,19 +119,26 @@ const SignInScreen: React.FC = () => {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
             />
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Password</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                passwordFocused && styles.inputFocused
+              ]}
               value={password}
               onChangeText={setPassword}
               placeholder="Enter your password"
               placeholderTextColor={colors.text.secondary}
               secureTextEntry
               autoCapitalize="none"
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
             />
           </View>
 
@@ -228,17 +240,41 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderColor: colors.border.light,
     borderWidth: 1,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     fontSize: typography.fontSize.base,
     color: colors.text.primary,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  inputFocused: {
+    borderColor: colors.accent.primary,
+    borderWidth: 2,
+    shadowColor: colors.accent.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   primaryButton: {
     backgroundColor: colors.accent.primary,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -252,9 +288,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderColor: colors.border.light,
     borderWidth: 1,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   secondaryButtonText: {
     color: colors.text.primary,
@@ -280,9 +324,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.button,
     paddingVertical: spacing.md,
     gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   googleButton: {
     backgroundColor: '#DB4437',

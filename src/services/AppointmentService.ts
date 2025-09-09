@@ -33,7 +33,7 @@ export class AppointmentService {
       if (!user) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
-        .from('appointments')
+        .from('appointment_summary')
         .select('*')
         .eq('user_id', user.id)
         .order('appointment_date', { ascending: true })
@@ -73,22 +73,9 @@ export class AppointmentService {
         throw new Error(`Cannot book appointment: You have ${remainingCuts || 0} cuts remaining. Please upgrade your plan or cancel an existing appointment.`);
       }
 
-      // In this single-barber app, all customers are automatically assigned to the one barber
-      // Find the barber profile (there should only be one)
+      // Find the barber profile (there should only be one in this single-barber app)
       console.log('Looking for barber profile...');
       
-      // First, let's see what profiles exist
-      const { data: allProfiles, error: allProfilesError } = await supabase
-        .from('profiles')
-        .select('id, email, role');
-      
-      if (allProfilesError) {
-        console.error('Error fetching all profiles:', allProfilesError);
-      } else {
-        console.log('All profiles in database:', allProfiles);
-      }
-      
-      // Now try to find the barber profile
       const { data: barberResults, error: barberError } = await supabase
         .from('profiles')
         .select('id')
@@ -99,25 +86,40 @@ export class AppointmentService {
       
       if (barberError) {
         console.error('Error fetching barber profile:', barberError);
+        throw new Error('Failed to find barber profile');
       } else if (barberResults && barberResults.length > 0) {
         console.log('Found barber profile:', barberResults[0]);
         barberData = barberResults[0];
       } else {
-        console.log('No barber profile found in results');
+        console.error('No barber profile found');
+        throw new Error('No barber available for booking');
       }
 
-      if (!barberData) {
-        console.error('No barber profile found. Creating a temporary barber profile for testing...');
-        
-        // For testing purposes, create a temporary barber profile using the current user's ID
-        // This is a workaround until the proper barber user is set up
-        console.log('Using current user as temporary barber for testing');
-        barberData = { id: user.id };
+      // Verify the service exists and get its details
+      const { data: serviceData, error: serviceError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('id', appointmentData.serviceId)
+        .eq('is_active', true)
+        .single();
+
+      if (serviceError || !serviceData) {
+        console.error('Error fetching service:', serviceError);
+        throw new Error('Service not found or inactive');
       }
 
-      // Note: We don't need to check availability here since the BookScreen
-      // only shows available time slots. If a slot is shown, it should be bookable.
-      // The availability check happens when generating the time slots.
+      // Ensure service details match what was passed in
+      const serviceName = appointmentData.serviceName || serviceData.name;
+      const serviceDuration = appointmentData.serviceDuration || serviceData.duration_minutes;
+      const servicePrice = appointmentData.servicePrice || serviceData.price;
+
+      console.log('Creating appointment with service:', {
+        serviceId: appointmentData.serviceId,
+        serviceName,
+        serviceDuration,
+        servicePrice,
+        cutsUsed: 1
+      });
 
       const { data, error } = await supabase
         .from('appointments')
@@ -125,9 +127,9 @@ export class AppointmentService {
           user_id: user.id,
           barber_id: barberData.id,
           service_id: appointmentData.serviceId,
-          service_name: appointmentData.serviceName,
-          service_duration: appointmentData.serviceDuration,
-          service_price: appointmentData.servicePrice,
+          service_name: serviceName,
+          service_duration: serviceDuration,
+          service_price: servicePrice,
           appointment_date: appointmentData.appointmentDate,
           appointment_time: appointmentData.appointmentTime,
           special_requests: appointmentData.specialRequests,
@@ -140,8 +142,12 @@ export class AppointmentService {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating appointment:', error);
+        throw error;
+      }
 
+      console.log('Appointment created successfully:', data.id);
       return this.mapToAppointment(data);
     } catch (error) {
       console.error('Error creating appointment:', error);
@@ -342,7 +348,7 @@ export class AppointmentService {
       if (!user) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
-        .from('appointments')
+        .from('appointment_summary')
         .select('*')
         .eq('user_id', user.id)
         .eq('status', 'scheduled')
@@ -370,7 +376,7 @@ export class AppointmentService {
       if (!user) throw new Error('User not authenticated');
 
       const { data, error } = await supabase
-        .from('appointments')
+        .from('appointment_summary')
         .select('*')
         .eq('user_id', user.id)
         .in('status', ['completed', 'cancelled', 'no_show'])
@@ -430,6 +436,102 @@ export class AppointmentService {
     } catch (error) {
       console.error('Error checking if user can book:', error);
       return false;
+    }
+  }
+
+  /**
+   * Reschedule an existing appointment
+   */
+  static async rescheduleAppointment(
+    appointmentId: string, 
+    newAppointmentData: CreateAppointmentData
+  ): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      console.log('Rescheduling appointment:', appointmentId, 'to:', newAppointmentData);
+
+      // Find the barber profile (there should only be one in this single-barber app)
+      const { data: barberResults, error: barberError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'barber')
+        .limit(1);
+      
+      let barberData: { id: string } | null = null;
+      
+      if (barberError) {
+        console.error('Error fetching barber profile:', barberError);
+        throw new Error('Failed to find barber profile');
+      } else if (barberResults && barberResults.length > 0) {
+        console.log('Found barber profile:', barberResults[0]);
+        barberData = barberResults[0];
+      } else {
+        console.error('No barber profile found');
+        throw new Error('No barber available for booking');
+      }
+
+      // Verify the service exists and get its details
+      const { data: serviceData, error: serviceError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('id', newAppointmentData.serviceId)
+        .eq('is_active', true)
+        .single();
+
+      if (serviceError || !serviceData) {
+        console.error('Error fetching service:', serviceError);
+        throw new Error('Service not found or inactive');
+      }
+
+      // Ensure service details match what was passed in
+      const serviceName = newAppointmentData.serviceName || serviceData.name;
+      const serviceDuration = newAppointmentData.serviceDuration || serviceData.duration_minutes;
+      const servicePrice = newAppointmentData.servicePrice || serviceData.price;
+
+      console.log('Updating appointment with new details:', {
+        appointmentId,
+        serviceName,
+        serviceDuration,
+        servicePrice,
+        newDate: newAppointmentData.appointmentDate,
+        newTime: newAppointmentData.appointmentTime
+      });
+
+      // Update the existing appointment with new details
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          service_id: newAppointmentData.serviceId,
+          service_name: serviceName,
+          service_duration: serviceDuration,
+          service_price: servicePrice,
+          appointment_date: newAppointmentData.appointmentDate,
+          appointment_time: newAppointmentData.appointmentTime,
+          special_requests: newAppointmentData.specialRequests,
+          location: newAppointmentData.location || '123 Main St, San Francisco, CA',
+          payment_method: newAppointmentData.paymentMethod || 'Credit Card',
+          credits_used: newAppointmentData.creditsUsed || 1,
+          cuts_used: 1, // Each appointment uses 1 cut
+          status: 'scheduled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating appointment:', error);
+        throw error;
+      }
+
+      console.log('Appointment rescheduled successfully:', data.id);
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
+      throw error;
     }
   }
 

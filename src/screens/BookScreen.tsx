@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { mockServices, mockBarber } from '../data/mockData';
+// Services are now loaded from database via AppContext
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
@@ -38,7 +38,8 @@ interface Props {
 }
 
 const BookScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { state, bookAppointment } = useApp();
+  const { state, bookAppointment, rescheduleAppointment } = useApp();
+  const { services, barber } = state;
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -89,17 +90,17 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   // Handle reschedule and rebook parameters
-  const rescheduleAppointment = route?.params?.rescheduleAppointment;
+  const rescheduleAppointmentData = route?.params?.rescheduleAppointment;
   const rebookAppointment = route?.params?.rebookAppointment;
-  const isRescheduling = !!rescheduleAppointment;
+  const isRescheduling = !!rescheduleAppointmentData;
   const isRebooking = !!rebookAppointment;
-  const appointmentData = rescheduleAppointment || rebookAppointment;
+  const appointmentData = rescheduleAppointmentData || rebookAppointment;
 
   // Pre-fill form for rescheduling or rebooking, or reset for new booking
   useEffect(() => {
     if (appointmentData) {
       // Find matching service
-      const matchingService = mockServices.find(service => 
+      const matchingService = services.find(service => 
         service.name.toLowerCase().includes(appointmentData.service.toLowerCase()) ||
         appointmentData.service.toLowerCase().includes(service.name.toLowerCase())
       );
@@ -190,7 +191,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       const dayOfWeek = date.getDay();
       
       // Check if barber is available on this day
-      const availability = mockBarber.availability.find(avail => avail.dayOfWeek === dayOfWeek);
+      const availability = barber?.availability.find((avail: any) => avail.dayOfWeek === dayOfWeek);
       if (availability && availability.isAvailable) {
         dates.push({
           date: date.toISOString().split('T')[0],
@@ -244,7 +245,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       console.log('Using barber ID:', barberId);
       
       // Get service duration
-      const service = mockServices.find(s => s.id === selectedService);
+      const service = services.find(s => s.id === selectedService);
       const serviceDuration = service?.duration || 30;
       
       // Get available time slots from the availability service
@@ -349,7 +350,8 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    if (!canBook) {
+    // For rescheduling, we don't need to check canBook since we're cancelling the existing appointment first
+    if (!isRescheduling && !canBook) {
       // Get more detailed cut status for better error message
       try {
         const { status, message } = await CutTrackingService.getCutStatusWithMessage();
@@ -375,7 +377,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    const service = mockServices.find(s => s.id === selectedService);
+    const service = services.find(s => s.id === selectedService);
     if (!service) return;
 
     // Convert 12-hour format to 24-hour format for database storage
@@ -407,15 +409,22 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     try {
-      await bookAppointment(appointmentData);
+      if (isRescheduling && rescheduleAppointmentData) {
+        // Use rescheduleAppointment which handles cancelling the existing appointment first
+        await rescheduleAppointment(rescheduleAppointmentData.id, appointmentData);
+      } else {
+        // Regular booking
+        await bookAppointment(appointmentData);
+      }
     } catch (error) {
       console.error('Error booking appointment:', error);
       Alert.alert('Error', 'Failed to book appointment. Please try again.');
       return;
     }
     
+    const actionText = isRescheduling ? 'Rescheduled' : 'Booked';
     Alert.alert(
-      'Appointment Booked!',
+      `Appointment ${actionText}!`,
       `Your ${service.name} is scheduled for ${new Date(selectedDate).toLocaleDateString()} at ${selectedTime}`,
       [{ text: 'OK', onPress: () => {
         resetForm();
@@ -425,7 +434,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   };
 
-  const renderServiceCard = (service: typeof mockServices[0]) => {
+  const renderServiceCard = (service: typeof services[0]) => {
     const isSelected = selectedService === service.id;
     const isPopular = service.id === '3'; // Premium Package is popular
     
@@ -625,7 +634,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const groupedTimes = groupTimesByPeriod(availableTimes);
-  const selectedServiceData = mockServices.find(s => s.id === selectedService);
+  const selectedServiceData = services.find((s: any) => s.id === selectedService);
 
   return (
     <View style={styles.container}>
@@ -655,7 +664,7 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
           {/* Service Selection */}
           <View ref={serviceSectionRef} style={styles.section}>
             <Text style={styles.sectionTitle}>Select Service</Text>
-            {mockServices.map(renderServiceCard)}
+            {services.map(renderServiceCard)}
           </View>
 
           {/* Date Selection */}
@@ -854,16 +863,16 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* Confirm Button */}
       <TouchableOpacity
         onPress={handleBook}
-        disabled={!selectedService || !selectedDate || !selectedTime || !canBook}
+        disabled={!selectedService || !selectedDate || !selectedTime || (!isRescheduling && !canBook)}
       >
         <LinearGradient 
           start={{x:0, y:0}}
           end={{x:0, y:1}}
-          colors={(!selectedService || !selectedDate || !selectedTime || !canBook) ? ["#CBD5E1", "#94A3B8"] : ["#000080", "#1D4ED8"]}
+          colors={(!selectedService || !selectedDate || !selectedTime || (!isRescheduling && !canBook)) ? ["#CBD5E1", "#94A3B8"] : ["#000080", "#1D4ED8"]}
           style={styles.confirmButton}
         >
           <Text style={styles.confirmButtonText}>
-            {!canBook ? 'No Cuts Remaining' : (isRescheduling ? 'Confirm Reschedule' : isRebooking ? 'Confirm Rebook' : 'Confirm Booking')}
+            {(!isRescheduling && !canBook) ? 'No Cuts Remaining' : (isRescheduling ? 'Confirm Reschedule' : isRebooking ? 'Confirm Rebook' : 'Confirm Booking')}
           </Text>
         </LinearGradient>
       </TouchableOpacity>

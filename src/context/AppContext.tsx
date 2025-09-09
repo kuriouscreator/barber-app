@@ -136,6 +136,7 @@ interface AppContextType {
   login: (user: User) => void;
   logout: () => void;
   bookAppointment: (appointmentData: CreateAppointmentData) => Promise<Appointment>;
+  rescheduleAppointment: (appointmentId: string, appointmentData: CreateAppointmentData) => Promise<Appointment>;
   cancelAppointment: (appointmentId: string) => Promise<Appointment>;
   updateAppointment: (appointmentId: string, updateData: any) => Promise<Appointment>;
   addService: (service: Service) => void;
@@ -176,7 +177,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             phone: profile?.phone || authUser.user_metadata?.phone || null,
             memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
             location: 'San Francisco, CA', // Default location
-            credits: 4, // Default credits
+            credits: 0, // Credits are now managed by subscription system
           };
           dispatch({ type: 'SET_USER', payload: user });
           
@@ -200,7 +201,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             phone: authUser.user_metadata?.phone || null,
             memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
             location: 'San Francisco, CA',
-            credits: 4, // Default credits
+            credits: 0, // Credits are now managed by subscription system
           };
           dispatch({ type: 'SET_USER', payload: user });
           lastSyncedUserIdRef.current = authUser.id;
@@ -287,6 +288,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return appointment;
     } catch (error) {
       console.error('Error booking appointment:', error);
+      throw error;
+    }
+  };
+
+  const rescheduleAppointment = async (appointmentId: string, appointmentData: CreateAppointmentData) => {
+    try {
+      const appointment = await AppointmentService.rescheduleAppointment(appointmentId, appointmentData);
+      
+      // Remove the old appointment and add the new one
+      dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
+      
+      return appointment;
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
       throw error;
     }
   };
@@ -408,6 +423,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     login,
     logout,
     bookAppointment,
+    rescheduleAppointment,
     cancelAppointment,
     updateAppointment,
     addService,
