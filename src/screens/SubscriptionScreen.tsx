@@ -18,7 +18,6 @@ import { billingLinkManager } from '../lib/billingLinking';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
-import PaymentButton from '../components/PaymentButton';
 
 type SubscriptionScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Subscription'>;
 
@@ -72,31 +71,29 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
     setSelectedPlan(planId);
   };
 
-  const handlePaymentSuccess = async (transactionId: string) => {
-    const selectedPlanData = plans.find(plan => plan.id === selectedPlan);
-    if (selectedPlanData) {
-      try {
-        setIsProcessing(true);
-        await BillingService.openNativeCheckout(selectedPlanData.stripe_price_id);
-        // Realtime will automatically update the subscription data
-        Alert.alert('Success', 'Subscription activated successfully! You can now start booking haircuts.');
-        navigation.goBack();
-      } catch (error) {
-        console.error('Error opening checkout:', error);
-        if (error.message === 'Payment was cancelled') {
-          // Don't show error for user cancellation
-          return;
-        }
-        Alert.alert('Error', 'Failed to process payment. Please try again.');
-      } finally {
-        setIsProcessing(false);
-      }
-    }
-  };
+  const handleSubscribe = async () => {
+    if (!selectedPlan || isProcessing) return;
 
-  const handlePaymentError = (error: string) => {
-    console.error('Payment error:', error);
-    setIsProcessing(false);
+    const selectedPlanData = plans.find(plan => plan.id === selectedPlan);
+    if (!selectedPlanData) return;
+
+    try {
+      setIsProcessing(true);
+      await BillingService.openNativeCheckout(selectedPlanData.stripe_price_id);
+      // Realtime will automatically update the subscription data
+      await refreshSubscription();
+      Alert.alert('Success', 'Subscription activated successfully! You can now start booking haircuts.');
+      navigation.goBack();
+    } catch (error: any) {
+      console.error('Error opening checkout:', error);
+      if (error?.message === 'Payment was cancelled') {
+        // Don't show error for user cancellation
+        return;
+      }
+      Alert.alert('Error', 'Failed to process payment. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const renderPlanCard = (plan: Plan) => {
@@ -111,7 +108,7 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
           <LinearGradient 
             start={{x:0, y:0}}
             end={{x:0, y:1}}
-            colors={["#000080", "#1D4ED8"]}
+            colors={[colors.black, colors.gray[700]]}
             style={styles.planCard}
           >
             <View style={styles.planHeader}>
@@ -258,13 +255,23 @@ const SubscriptionScreen: React.FC<Props> = ({ navigation }) => {
 
       <View style={styles.buttonContainer}>
         {selectedPlan && (
-          <PaymentButton
-            amount={0} // Stripe handles pricing
-            description={`${plans.find(plan => plan.id === selectedPlan)?.name} subscription`}
-            onSuccess={handlePaymentSuccess}
-            onError={handlePaymentError}
-            disabled={!selectedPlan || isProcessing}
-          />
+          <TouchableOpacity
+            style={[
+              styles.subscribeButton,
+              isProcessing && styles.subscribeButtonDisabled,
+            ]}
+            onPress={handleSubscribe}
+            disabled={isProcessing}
+          >
+            <Ionicons
+              name={isProcessing ? "hourglass-outline" : "card-outline"}
+              size={20}
+              color={colors.white}
+            />
+            <Text style={styles.subscribeButtonText}>
+              {isProcessing ? 'Opening Checkout...' : 'Subscribe with Stripe'}
+            </Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -305,12 +312,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.lg,
     borderWidth: 2,
-    borderColor: colors.border.light,
     position: 'relative',
   },
   selectedPlanCard: {
     backgroundColor: colors.black,
-    borderColor: colors.black,
   },
   planHeader: {
     flexDirection: 'row',
@@ -429,6 +434,24 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
+  },
+  subscribeButton: {
+    backgroundColor: colors.black,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  subscribeButtonDisabled: {
+    opacity: 0.6,
+  },
+  subscribeButtonText: {
+    color: colors.white,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
   },
 });
 

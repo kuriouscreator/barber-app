@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,21 +10,27 @@ import {
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MainTabParamList, RootStackParamList } from '../types';
+import { MainTabParamList, RootStackParamList, Appointment } from '../types';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
+import { BUSINESS_INFO } from '../constants/business';
 import { useApp } from '../context/AppContext';
 import { AppointmentService } from '../services/AppointmentService';
 import AppointmentCard from '../components/AppointmentCard';
+import { AppointmentDetailSheet } from '../components/AppointmentDetailSheet';
 import ReviewModal from '../components/ReviewModal';
+import { haptics } from '../utils/haptics';
 
 type AppointmentsScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Appointments'> & StackNavigationProp<RootStackParamList>;
+type AppointmentsScreenRouteProp = RouteProp<MainTabParamList, 'Appointments'>;
 
 interface Props {
   navigation: AppointmentsScreenNavigationProp;
+  route: AppointmentsScreenRouteProp;
 }
 
 // Helper function to format appointment dates
@@ -51,12 +57,43 @@ const formatAppointmentDate = (dateString: string): string => {
   });
 };
 
-const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
+const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
   const { state, cancelAppointment } = useApp();
   const { user, appointments } = state;
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'canceled'>('upcoming');
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedAppointmentForReview, setSelectedAppointmentForReview] = useState<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [detailsAppointment, setDetailsAppointment] = useState<Appointment | null>(null);
+  const bottomSheetRef = useRef<any>(null);
+  const detailsSheetRef = useRef<any>(null);
+
+  // Update selectedAppointment when appointments array changes
+  useEffect(() => {
+    if (selectedAppointment) {
+      const updatedAppointment = appointments.find(apt => apt.id === selectedAppointment.id);
+      if (updatedAppointment && JSON.stringify(updatedAppointment) !== JSON.stringify(selectedAppointment)) {
+        console.log('📱 AppointmentsScreen: Updating selected appointment with new data');
+        console.log('📅 AppointmentsScreen: Old date:', selectedAppointment.appointmentDate);
+        console.log('📅 AppointmentsScreen: New date:', updatedAppointment.appointmentDate);
+        setSelectedAppointment(updatedAppointment);
+      }
+    }
+  }, [appointments]);
+
+  // Auto-open bottom sheet when navigated with appointmentId
+  useEffect(() => {
+    const appointmentId = route.params?.appointmentId;
+    if (appointmentId) {
+      // Wait a bit for the screen to render
+      setTimeout(() => {
+        handleAppointmentPress(appointmentId);
+      }, 300);
+
+      // Clear the param after opening to prevent re-opening on re-render
+      navigation.setParams({ appointmentId: undefined });
+    }
+  }, [route.params?.appointmentId]);
 
   // Filter appointments from AppContext
   const upcomingAppointments = appointments.filter(apt => {
@@ -77,34 +114,50 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
     return apt.status === 'cancelled';
   });
 
-  const handleReschedule = (appointmentId: string) => {
-    const appointment = upcomingAppointments.find(apt => apt.id === appointmentId);
-    if (appointment) {
-      // Mock barber info for now
-      const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
-      navigation.navigate('Book' as any, {
-        rescheduleAppointment: {
-          id: appointmentId,
-          shopName: barberInfo?.name || "Unknown Barber",
-          service: appointment.serviceName || appointment.service || 'Unknown Service',
-          currentDate: appointment.appointmentDate || appointment.date || '',
-          currentTime: appointment.appointmentTime || appointment.time || '',
-          location: 'Downtown Plaza',
-          barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-        }
-      });
+  const handleAppointmentPress = async (appointmentId: string) => {
+    try {
+      const appointmentWithVenue = await AppointmentService.getAppointmentWithVenue(appointmentId);
+      if (appointmentWithVenue) {
+        setSelectedAppointment(appointmentWithVenue);
+        bottomSheetRef.current?.snapToIndex(0);
+      }
+    } catch (error) {
+      console.error('Error loading appointment details:', error);
+      Alert.alert('Error', 'Failed to load appointment details');
     }
   };
 
-  const handleCancel = (appointmentId: string) => {
+  const handleCloseSheet = () => {
+    bottomSheetRef.current?.close();
+    setSelectedAppointment(null);
+  };
+
+  const handleReschedule = (appointment: Appointment) => {
+    // Mock barber info for now
+    const barberInfo = { id: appointment.barberId, name: appointment.venue?.name || BUSINESS_INFO.name, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
+    navigation.navigate('Book' as any, {
+      rescheduleAppointment: {
+        id: appointment.id,
+        shopName: barberInfo?.name || "Unknown Barber",
+        service: appointment.serviceName || 'Unknown Service',
+        currentDate: appointment.appointmentDate || '',
+        currentTime: appointment.appointmentTime || '',
+        location: appointment.venue?.address || 'Downtown Plaza',
+        barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+      }
+    });
+  };
+
+  const handleCancel = (appointment: Appointment) => {
+    const appointmentId = appointment.id;
     Alert.alert(
       'Cancel Appointment',
       'Are you sure you want to cancel this appointment? Your credit will be restored.',
       [
         { text: 'Keep', style: 'cancel' },
-        { 
-          text: 'Cancel', 
-          style: 'destructive', 
+        {
+          text: 'Cancel',
+          style: 'destructive',
           onPress: async () => {
             try {
               await cancelAppointment(appointmentId);
@@ -120,31 +173,25 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
-  const handleRebook = (appointmentId: string) => {
-    const appointment = [...pastAppointments, ...canceledAppointments].find(apt => apt.id === appointmentId);
-    if (appointment) {
-      // Mock barber info for now
-      const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
-      navigation.navigate('Book' as any, {
-        rebookAppointment: {
-          id: appointmentId,
-          shopName: barberInfo?.name || "Unknown Barber",
-          service: appointment.serviceName || appointment.service || 'Unknown Service',
-          currentDate: appointment.appointmentDate || appointment.date || '',
-          currentTime: appointment.appointmentTime || appointment.time || '',
-          location: 'Downtown Plaza',
-          barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-        }
-      });
-    }
+  const handleRebook = (appointment: Appointment) => {
+    // Mock barber info for now
+    const barberInfo = { id: appointment.barberId, name: appointment.venue?.name || BUSINESS_INFO.name, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
+    navigation.navigate('Book' as any, {
+      rebookAppointment: {
+        id: appointment.id,
+        shopName: barberInfo?.name || "Unknown Barber",
+        service: appointment.serviceName || 'Unknown Service',
+        currentDate: appointment.appointmentDate || '',
+        currentTime: appointment.appointmentTime || '',
+        location: appointment.venue?.address || 'Downtown Plaza',
+        barberAvatar: barberInfo?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+      }
+    });
   };
 
-  const handleReview = (appointmentId: string) => {
-    const appointment = pastAppointments.find(apt => apt.id === appointmentId);
-    if (appointment) {
-      setSelectedAppointmentForReview(appointment);
-      setReviewModalVisible(true);
-    }
+  const handleReview = (appointment: Appointment) => {
+    setSelectedAppointmentForReview(appointment);
+    setReviewModalVisible(true);
   };
 
   const handleSubmitReview = async (reviewData: { rating: number; text: string; photos: string[] }) => {
@@ -158,10 +205,10 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
         );
         
         // Mock barber info for navigation
-        const barberInfo = { 
-          id: selectedAppointmentForReview.barberId, 
-          name: 'Mike\'s Barbershop', 
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' 
+        const barberInfo = {
+          id: selectedAppointmentForReview.barberId,
+          name: BUSINESS_INFO.name,
+          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face'
         };
         
         // Navigate to barber profile
@@ -185,21 +232,31 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
     setSelectedAppointmentForReview(null);
   };
 
-  const handleViewBarberProfile = (barberId: string, barberName: string, barberAvatar: string, barberRating: number, barberReviewCount: number) => {
+  const handleViewBarberProfile = (appointment: Appointment) => {
     navigation.navigate('BarberProfile', {
-      barberId,
-      barberName,
-      barberAvatar,
-      barberRating,
-      barberReviewCount,
+      barberId: appointment.barberId,
+      barberName: appointment.venue?.name || BUSINESS_INFO.name,
+      barberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+      barberRating: appointment.venue?.rating || 4.8,
+      barberReviewCount: appointment.venue?.reviewCount || 0,
     });
   };
 
+  const handleViewDetails = (appointment: any) => {
+    // Open the appointment details bottom sheet
+    setDetailsAppointment(appointment);
+    detailsSheetRef.current?.open();
+  };
+
+  const handleCloseDetailsSheet = () => {
+    detailsSheetRef.current?.close();
+    setDetailsAppointment(null);
+  };
+
   const renderAppointmentCard = (appointment: any, isUpcoming: boolean, isCanceled: boolean = false) => {
-    // Mock barber info and stats for now
-    const barberInfo = { id: appointment.barberId, name: 'Mike\'s Barbershop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
-    const barberStats = { rating: 4.8, reviewCount: 0 }; // Will be updated with real data from ReviewService
-    
+    // Mock barber info for now
+    const barberInfo = { id: appointment.barberId, name: BUSINESS_INFO.name, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
+
     return (
       <AppointmentCard
         key={appointment.id}
@@ -212,15 +269,22 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
         barberPhoto={barberInfo?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face"}
         isUpcoming={isUpcoming}
         rating={appointment.rating}
-        onReschedule={handleReschedule}
-        onCancel={handleCancel}
-        onReview={handleReview}
-        onRebook={handleRebook}
-        onViewBarberProfile={handleViewBarberProfile}
-        showReviewButton={!appointment.rating && !isCanceled} // Don't show review button for canceled appointments
+        status={appointment.status}
+        serviceDuration={appointment.serviceDuration}
+        specialRequests={appointment.specialRequests}
+        appointmentDate={appointment.appointmentDate || appointment.date}
+        onPress={handleAppointmentPress}
+        onReschedule={() => handleReschedule(appointment)}
+        onCancel={() => handleCancel(appointment)}
+        onRebook={() => handleRebook(appointment)}
+        onViewDetails={() => handleViewDetails(appointment)}
+        onGetDirections={() => {
+          // Handle get directions
+          Alert.alert('Directions', 'Navigate to the venue');
+        }}
         barberId={appointment.barberId}
-        barberRating={barberStats.rating}
-        barberReviewCount={barberStats.reviewCount}
+        barberRating={4.8}
+        barberReviewCount={0}
       />
     );
   };
@@ -231,25 +295,34 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
         
         {/* Tab Selector */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
-            onPress={() => setActiveTab('upcoming')}
+            onPress={() => {
+              haptics.selection();
+              setActiveTab('upcoming');
+            }}
           >
             <Text style={[styles.tabText, activeTab === 'upcoming' && styles.activeTabText]}>
               Upcoming ({upcomingAppointments.length})
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'past' && styles.activeTab]}
-            onPress={() => setActiveTab('past')}
+            onPress={() => {
+              haptics.selection();
+              setActiveTab('past');
+            }}
           >
             <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
               Past ({pastAppointments.length})
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'canceled' && styles.activeTab]}
-            onPress={() => setActiveTab('canceled')}
+            onPress={() => {
+              haptics.selection();
+              setActiveTab('canceled');
+            }}
           >
             <Text style={[styles.tabText, activeTab === 'canceled' && styles.activeTabText]}>
               Canceled ({canceledAppointments.length})
@@ -293,9 +366,36 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           setSelectedAppointmentForReview(null);
         }}
         onSubmit={handleSubmitReview}
-        barberName={selectedAppointmentForReview ? "Mike's Barbershop" : "Unknown Barber"}
+        barberName={selectedAppointmentForReview ? BUSINESS_INFO.name : "Unknown Barber"}
         serviceName={selectedAppointmentForReview?.service || ''}
         appointmentId={selectedAppointmentForReview?.id || ''}
+      />
+
+      {/* Appointment Detail Bottom Sheet */}
+      <AppointmentDetailSheet
+        ref={bottomSheetRef}
+        appointment={selectedAppointment}
+        onClose={handleCloseSheet}
+        onReschedule={handleReschedule}
+        onCancel={handleCancel}
+        onReview={handleReview}
+        onRebook={handleRebook}
+        onViewBarberProfile={handleViewBarberProfile}
+      />
+
+      {/* Appointment Details Drawer */}
+      <AppointmentDetailSheet
+        ref={detailsSheetRef}
+        appointment={detailsAppointment}
+        onClose={handleCloseDetailsSheet}
+        onReschedule={(apt) => {
+          handleCloseDetailsSheet();
+          handleReschedule(apt);
+        }}
+        onCancel={(apt) => {
+          handleCloseDetailsSheet();
+          handleCancel(apt);
+        }}
       />
     </ScrollView>
   );
@@ -313,38 +413,40 @@ const styles = StyleSheet.create({
   // Tab Selector
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xs,
+    backgroundColor: 'colors.gray[100]',
+    borderRadius: 12,
+    padding: 4,
     marginBottom: spacing.lg,
-    ...shadows.sm,
   },
   tab: {
     flex: 1,
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
     paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
+    borderRadius: 8,
     alignItems: 'center',
   },
   activeTab: {
-    backgroundColor: colors.accent.primary,
+    backgroundColor: colors.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   tabText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.secondary,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
     textAlign: 'center',
   },
   activeTabText: {
-    color: colors.white,
+    color: '#111827',
   },
 
   // Appointment Cards
   appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: colors.border.light,
     borderRadius: 16,
-    borderWidth: 1,
     paddingVertical: 17,
     marginBottom: 16,
     shadowColor: '#0000000D',
@@ -403,7 +505,7 @@ const styles = StyleSheet.create({
   },
   appointmentTime: {
     fontSize: 14,
-    color: '#4B5563',
+    color: 'colors.gray[700]',
   },
   appointmentDivider: {
     height: 1,
@@ -423,8 +525,6 @@ const styles = StyleSheet.create({
   // Buttons
   rescheduleButton: {
     backgroundColor: colors.white,
-    borderColor: colors.accent.primary,
-    borderWidth: 1,
     borderRadius: borderRadius.button,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -450,8 +550,6 @@ const styles = StyleSheet.create({
   },
   reviewButton: {
     backgroundColor: colors.white,
-    borderColor: colors.accent.primary,
-    borderWidth: 1,
     borderRadius: borderRadius.button,
     paddingVertical: 12,
     paddingHorizontal: 16,

@@ -5,6 +5,7 @@ import { getUserProfile } from '../services/profileService';
 import { AppointmentService, CreateAppointmentData } from '../services/AppointmentService';
 import { AvailabilityService } from '../services/AvailabilityService';
 import { BillingService, UserSubscription } from '../services/billing';
+import { ActivityLogger } from '../services/ActivityLogger';
 import { supabase } from '../lib/supabase';
 
 interface AppState {
@@ -56,11 +57,22 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
     case 'ADD_APPOINTMENT':
       return { ...state, appointments: [...state.appointments, action.payload] };
     case 'UPDATE_APPOINTMENT':
+      console.log('🔧 Reducer: UPDATE_APPOINTMENT');
+      console.log('🔧 Reducer: Updating appointment ID:', action.payload.id);
+      console.log('🔧 Reducer: New appointment data:', action.payload);
+      const updatedAppointments = state.appointments.map(apt => {
+        if (apt.id === action.payload.id) {
+          console.log('✅ Reducer: Found matching appointment, updating...');
+          console.log('📅 Reducer: Old date/time:', apt.appointmentDate, apt.appointmentTime);
+          console.log('📅 Reducer: New date/time:', action.payload.appointmentDate, action.payload.appointmentTime);
+          return action.payload;
+        }
+        return apt;
+      });
+      console.log('✅ Reducer: Updated appointments array');
       return {
         ...state,
-        appointments: state.appointments.map(apt =>
-          apt.id === action.payload.id ? action.payload : apt
-        ),
+        appointments: updatedAppointments,
       };
     case 'SET_SUBSCRIPTIONS':
       return { ...state, subscriptions: action.payload };
@@ -161,7 +173,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Simple effect to sync user when authUser changes
   useEffect(() => {
-    const syncUser = async () => {
+    const syncUserEffect = async () => {
       if (authUser && lastSyncedUserIdRef.current !== authUser.id) {
         try {
           // Fetch user profile to get role and other details
@@ -215,7 +227,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
 
-    syncUser();
+    syncUserEffect();
   }, [authUser?.id]);
 
   // Handle subscription refresh
@@ -294,14 +306,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const rescheduleAppointment = async (appointmentId: string, appointmentData: CreateAppointmentData) => {
     try {
+      console.log('🔄 Context: Rescheduling appointment:', appointmentId);
+      console.log('🔄 Context: New appointment data:', appointmentData);
+
       const appointment = await AppointmentService.rescheduleAppointment(appointmentId, appointmentData);
-      
-      // Remove the old appointment and add the new one
+
+      console.log('✅ Context: Received rescheduled appointment:', appointment);
+      console.log('📅 Context: New date/time:', appointment.appointmentDate, appointment.appointmentTime);
+
+      // Update the appointment in state
       dispatch({ type: 'UPDATE_APPOINTMENT', payload: appointment });
-      
+
+      console.log('✅ Context: Dispatched UPDATE_APPOINTMENT action');
+
+      // Log activity for appointment rescheduled
+      if (state.user?.id) {
+        try {
+          // Parse the date string directly to avoid timezone issues
+          const [year, monthNum, dayNum] = appointment.appointmentDate.split('T')[0].split('-').map(Number);
+          const date = new Date(year, monthNum - 1, dayNum);
+          const formattedDate = date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+          });
+          const formattedTime = appointment.appointmentTime;
+
+          await ActivityLogger.logAppointmentRescheduled(
+            state.user.id,
+            appointment.id,
+            formattedDate,
+            formattedTime
+          );
+          console.log('✅ Context: Logged reschedule activity');
+        } catch (activityError) {
+          console.error('⚠️ Context: Failed to log reschedule activity:', activityError);
+        }
+      }
+
       return appointment;
     } catch (error) {
-      console.error('Error rescheduling appointment:', error);
+      console.error('❌ Context: Error rescheduling appointment:', error);
       throw error;
     }
   };
@@ -417,6 +461,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await loadUserSubscription();
   };
 
+  const syncUser = useCallback(async () => {
+    if (!authUser) return;
+
+    try {
+      // Fetch user profile to get role and other details
+      const profile = await getUserProfile(authUser.id);
+
+      // Convert Supabase user to our User type
+      const user: User = {
+        id: authUser.id,
+        name: profile?.full_name || authUser.email?.split('@')[0] || 'User',
+        email: authUser.email || '',
+        role: profile?.role || 'customer',
+        avatar: profile?.avatar_url || authUser.user_metadata?.avatar_url || null,
+        phone: profile?.phone || authUser.user_metadata?.phone || null,
+        memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
+        location: 'San Francisco, CA',
+        credits: 0,
+      };
+      dispatch({ type: 'SET_USER', payload: user });
+    } catch (error) {
+      console.error('Error syncing user:', error);
+    }
+  }, [authUser]);
+
   const value: AppContextType = {
     state,
     dispatch,
@@ -434,7 +503,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateScheduleException,
     deleteScheduleException,
     getAvailabilityForDate,
-    syncUser: async () => {}, // Dummy function since we're not exposing the real one
+    syncUser,
     loadUserSubscription,
     refreshSubscription,
   };

@@ -1,4 +1,3 @@
-import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StripeProvider } from '@stripe/stripe-react-native';

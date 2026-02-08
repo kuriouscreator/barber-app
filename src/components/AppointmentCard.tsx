@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
+import { haptics } from '../utils/haptics';
 
 // Utility function to convert 24hr time to 12hr format
 const formatTimeTo12Hour = (time24: string): string => {
@@ -19,6 +19,21 @@ const formatTimeTo12Hour = (time24: string): string => {
   const ampm = hour >= 12 ? 'PM' : 'AM';
   const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   return `${hour12}:${minutes} ${ampm}`;
+};
+
+// Helper to format date for the date box
+const formatDateBox = (dateString: string) => {
+  // Parse the date string directly to avoid timezone issues
+  // Expected format: YYYY-MM-DD
+  const [year, monthNum, dayNum] = dateString.split('T')[0].split('-').map(Number);
+
+  // Create date object using local timezone (year, monthIndex, day)
+  const date = new Date(year, monthNum - 1, dayNum);
+
+  const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  const day = date.getDate().toString().padStart(2, '0');
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+  return { month, day, weekday };
 };
 
 export interface AppointmentCardProps {
@@ -31,15 +46,20 @@ export interface AppointmentCardProps {
   barberPhoto: string;
   isUpcoming?: boolean;
   rating?: number | null;
-  onReschedule?: (id: string) => void;
-  onCancel?: (id: string) => void;
-  onReview?: (id: string) => void;
-  onRebook?: (id: string) => void;
-  onViewBarberProfile?: (barberId: string, barberName: string, barberAvatar: string, barberRating: number, barberReviewCount: number) => void;
-  showReviewButton?: boolean;
+  specialRequests?: string;
+  serviceDuration?: number;
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  onPress?: (id: string) => void;
+  onReschedule?: () => void;
+  onCancel?: () => void;
+  onConfirm?: () => void;
+  onGetDirections?: () => void;
+  onRebook?: () => void;
+  onViewDetails?: () => void;
   barberId?: string;
   barberRating?: number;
   barberReviewCount?: number;
+  appointmentDate?: string; // Full date string for date box formatting
 }
 
 const AppointmentCard: React.FC<AppointmentCardProps> = ({
@@ -52,118 +72,180 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
   barberPhoto,
   isUpcoming = true,
   rating = null,
+  specialRequests,
+  serviceDuration,
+  status,
+  onPress,
   onReschedule,
   onCancel,
-  onReview,
+  onConfirm,
+  onGetDirections,
   onRebook,
-  onViewBarberProfile,
-  showReviewButton = true,
+  onViewDetails,
   barberId,
   barberRating = 4.8,
   barberReviewCount = 0,
+  appointmentDate,
 }) => {
-  // Function to render star rating
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, index) => (
-      <Ionicons
-        key={index}
-        name={index < rating ? "star" : "star-outline"}
-        size={12}
-        color="#FFD700"
-        style={{ marginRight: 2 }}
-      />
-    ));
+  const getStatusBadge = () => {
+    if (!status) return null;
+
+    const statusConfig = {
+      scheduled: { text: 'Confirmed', color: '#15803D', bgColor: '#F0FDF4' },
+      completed: { text: 'Completed', color: '#15803D', bgColor: '#F0FDF4' },
+      cancelled: { text: 'Cancelled', color: '#DC2626', bgColor: '#FEF2F2' },
+      no_show: { text: 'No Show', color: colors.gray[600], bgColor: 'rgba(107,114,128,0.1)' },
+    };
+
+    const config = statusConfig[status];
+    if (!config) return null;
+
+    return (
+      <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
+        <Text style={[styles.statusBadgeText, { color: config.color }]}>{config.text}</Text>
+      </View>
+    );
   };
+
+  // Format the date box
+  const dateBoxData = appointmentDate ? formatDateBox(appointmentDate) : null;
+
+  // Determine date box styling based on status
+  const getDateBoxStyle = () => {
+    if (status === 'scheduled') {
+      return { box: styles.dateBoxConfirmed, text: styles.dateBoxTextConfirmed };
+    } else if (status === 'cancelled') {
+      return { box: styles.dateBoxCancelled, text: styles.dateBoxTextCancelled };
+    } else {
+      return { box: styles.dateBoxPending, text: styles.dateBoxTextPending };
+    }
+  };
+
+  const dateBoxStyle = getDateBoxStyle();
+
+  // Render appropriate buttons based on status
+  const renderActionButtons = () => {
+    if (status === 'scheduled') {
+      // Upcoming appointments: View Details + Reschedule
+      return (
+        <>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              haptics.light();
+              if (onViewDetails) {
+                onViewDetails();
+              } else if (onPress) {
+                onPress(id);
+              }
+            }}
+          >
+            <Text style={styles.primaryButtonText}>View Details</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              haptics.light();
+              if (onReschedule) onReschedule();
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Reschedule</Text>
+          </TouchableOpacity>
+        </>
+      );
+    } else if (status === 'completed') {
+      // Past appointments: View Details + Rebook
+      return (
+        <>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              haptics.light();
+              if (onViewDetails) {
+                onViewDetails();
+              } else if (onPress) {
+                onPress(id);
+              }
+            }}
+          >
+            <Text style={styles.primaryButtonText}>View Details</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              haptics.light();
+              if (onRebook) onRebook();
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Rebook</Text>
+          </TouchableOpacity>
+        </>
+      );
+    } else if (status === 'cancelled') {
+      // Canceled appointments: Just Rebook button
+      return (
+        <TouchableOpacity
+          style={[styles.primaryButton, { flex: 1 }]}
+          onPress={() => {
+            haptics.light();
+            if (onRebook) onRebook();
+          }}
+        >
+          <Text style={styles.primaryButtonText}>Rebook</Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
   return (
     <View style={styles.appointmentCard}>
-      {/* Top Row: Image + Info + Date/Time */}
-      <View style={styles.appointmentTopRow}>
-        <Image source={{ uri: barberPhoto }} style={styles.barberPhoto} />
-        <View style={styles.appointmentInfo}>
-          <TouchableOpacity 
-            onPress={() => onViewBarberProfile?.(barberId || '1', barberName, barberPhoto, barberRating, barberReviewCount)}
-            style={styles.barberNameContainer}
-          >
-            <Text style={styles.barberName} numberOfLines={1}>{barberName}</Text>
-          </TouchableOpacity>
-          <Text style={styles.serviceName}>{service}</Text>
-          <View style={styles.appointmentLocation}>
-            <Ionicons name="location-outline" size={14} color={colors.text.secondary} />
-            <Text style={styles.appointmentLocationText} numberOfLines={2} ellipsizeMode="tail">{location}</Text>
+      <View style={styles.cardContent}>
+        {/* Date Box on the Left */}
+        {dateBoxData && (
+          <View style={[styles.dateBox, dateBoxStyle.box]}>
+            <Text style={[styles.dateBoxMonth, dateBoxStyle.text]}>
+              {dateBoxData.month}
+            </Text>
+            <Text style={[styles.dateBoxDay, dateBoxStyle.text]}>
+              {dateBoxData.day}
+            </Text>
+            <Text style={[styles.dateBoxWeekday, dateBoxStyle.text]}>
+              {dateBoxData.weekday}
+            </Text>
           </View>
-          {!isUpcoming && rating && (
-            <View style={styles.appointmentRating}>
-              {renderStars(rating)}
+        )}
+
+        {/* Service Info */}
+        <View style={styles.serviceInfo}>
+          {/* Title and Status Badge */}
+          <View style={styles.titleRow}>
+            <View style={styles.serviceTitleContainer}>
+              <Text style={styles.serviceTitle}>{service}</Text>
             </View>
-          )}
-        </View>
-        <View style={styles.appointmentRight}>
-          <Text style={styles.appointmentDate}>{date}</Text>
-          <Text style={styles.appointmentTime}>{formatTimeTo12Hour(time)}</Text>
+            {getStatusBadge()}
+          </View>
+
+          {/* Time and Duration Icons */}
+          <View style={styles.metaRow}>
+            <View style={styles.metaItem}>
+              <Ionicons name="time-outline" size={12} color={colors.gray[600]} />
+              <Text style={styles.metaText}>{formatTimeTo12Hour(time)}</Text>
+            </View>
+            {serviceDuration && (
+              <View style={styles.metaItem}>
+                <Ionicons name="timer-outline" size={12} color={colors.gray[600]} />
+                <Text style={styles.metaText}>{serviceDuration} min</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            {renderActionButtons()}
+          </View>
         </View>
       </View>
-      
-      {/* Divider */}
-      <View style={styles.appointmentDivider} />
-      
-      {/* Bottom Row: Actions */}
-      {isUpcoming ? (
-        <View style={styles.appointmentBottomRow}>
-          <TouchableOpacity 
-            style={styles.rescheduleButton}
-            onPress={() => onReschedule?.(id)}
-          >
-            <Text style={styles.rescheduleButtonText}>Reschedule</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => onCancel?.(id)}
-          >
-            <LinearGradient 
-              start={{x:0, y:0}}
-              end={{x:0, y:1}}
-              colors={["#000080", "#1D4ED8"]}
-              style={styles.cancelButton}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      ) : showReviewButton ? (
-        <View style={styles.appointmentBottomRow}>
-          <TouchableOpacity 
-            style={styles.reviewButton}
-            onPress={() => onReview?.(id)}
-          >
-            <Text style={styles.reviewButtonText}>Review</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => onRebook?.(id)}
-          >
-            <LinearGradient 
-              start={{x:0, y:0}}
-              end={{x:0, y:1}}
-              colors={["#000080", "#1D4ED8"]}
-              style={styles.rebookButton}
-            >
-              <Text style={styles.rebookButtonText}>Rebook</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity 
-          onPress={() => onRebook?.(id)}
-          style={styles.fullWidthRebookContainer}
-        >
-          <LinearGradient 
-            start={{x:0, y:0}}
-            end={{x:0, y:1}}
-            colors={["#000080", "#1D4ED8"]}
-            style={styles.fullWidthRebookButton}
-          >
-            <Text style={styles.rebookButtonText}>Rebook</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
     </View>
   );
 };
@@ -171,169 +253,142 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
 const styles = StyleSheet.create({
   appointmentCard: {
     backgroundColor: '#FFFFFF',
-    borderColor: colors.border.light,
     borderRadius: 16,
-    borderWidth: 1,
-    paddingVertical: 17,
-    marginBottom: 16,
-    shadowColor: '#0000000D',
-    shadowOpacity: 0.1,
+    padding: 17,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
     shadowOffset: {
       width: 0,
-      height: 1
+      height: 2
     },
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  appointmentTopRow: {
+  cardContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginHorizontal: 17,
-    marginBottom: 12,
+    gap: 16,
   },
-  barberPhoto: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
-  },
-  appointmentInfo: {
-    flex: 1,
-  },
-  barberNameContainer: {
-    flexDirection: 'row',
+
+  // Date Box
+  dateBox: {
+    minWidth: 60,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    justifyContent: 'center',
   },
-  barberName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    flex: 1,
+  dateBoxConfirmed: {
+    backgroundColor: 'rgba(51, 65, 85, 0.1)',
   },
-  barberRatingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
+  dateBoxPending: {
+    backgroundColor: 'colors.gray[100]',
   },
-  barberRatingText: {
+  dateBoxCancelled: {
+    backgroundColor: '#FEF2F2',
+  },
+  dateBoxMonth: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  dateBoxDay: {
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 32,
+  },
+  dateBoxWeekday: {
     fontSize: 12,
     fontWeight: '500',
-    color: colors.text.secondary,
   },
-  serviceName: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    marginBottom: 4,
+  dateBoxTextConfirmed: {
+    color: colors.gray[800],
   },
-  appointmentLocation: {
+  dateBoxTextPending: {
+    color: 'colors.gray[700]',
+  },
+  dateBoxTextCancelled: {
+    color: '#DC2626',
+  },
+
+  // Service Info
+  serviceInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  appointmentLocationText: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginLeft: 4,
-  },
-  appointmentRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  appointmentRight: {
-    alignItems: 'flex-end',
-  },
-  appointmentDate: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 2,
-  },
-  appointmentTime: {
-    fontSize: 14,
-    color: '#4B5563',
-  },
-  appointmentDivider: {
-    height: 1,
-    backgroundColor: colors.border.light,
-    marginHorizontal: 17,
-    marginVertical: 12,
-  },
-  appointmentBottomRow: {
-    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+  },
+  serviceTitleContainer: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  serviceTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    lineHeight: 24,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 9999,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Meta Row (Time and Duration)
+  metaRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 17,
-    marginTop: 8,
-    gap: 12,
+    gap: 16,
   },
-  fullWidthRebookContainer: {
-    marginHorizontal: 17,
-    marginTop: 8,
-  },
-  
-  // Buttons
-  rescheduleButton: {
-    backgroundColor: colors.white,
-    borderColor: colors.accent.primary,
-    borderWidth: 1,
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-  },
-  rescheduleButtonText: {
-    fontSize: 14,
-    color: colors.accent.primary,
-    fontWeight: typography.fontWeight.medium,
-    textAlign: 'center',
-  },
-  cancelButton: {
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
+  metaItem: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
-  cancelButtonText: {
-    fontSize: 14,
-    color: colors.white,
-    fontWeight: typography.fontWeight.medium,
+  metaText: {
+    fontSize: 12,
+    color: 'colors.gray[700]',
   },
-  reviewButton: {
-    backgroundColor: colors.white,
-    borderColor: colors.accent.primary,
-    borderWidth: 1,
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+
+  // Action Buttons
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingTop: 4,
+  },
+  primaryButton: {
     flex: 1,
-  },
-  reviewButtonText: {
-    fontSize: 14,
-    color: colors.accent.primary,
-    fontWeight: typography.fontWeight.medium,
-    textAlign: 'center',
-  },
-  rebookButton: {
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
+    backgroundColor: '#0F172A',
+    borderRadius: 8,
+    paddingVertical: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  fullWidthRebookButton: {
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
+  primaryButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  secondaryButton: {
+    backgroundColor: 'colors.gray[100]',
+    borderRadius: 8,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  rebookButtonText: {
-    fontSize: 14,
-    color: colors.white,
-    fontWeight: typography.fontWeight.medium,
+  secondaryButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
   },
 });
 

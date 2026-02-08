@@ -16,12 +16,30 @@ export const colors = {
     800: '#1E293B',
     900: '#0F172A',
   },
-  
+
+  // Extended color palette
+  green: {
+    600: '#16A34A',
+  },
+  red: {
+    50: '#FEF2F2',
+    500: '#EF4444',
+    600: '#DC2626',
+    700: '#B91C1C',
+  },
+  orange: {
+    50: '#FFF7ED',
+    600: '#EA580C',
+  },
+  yellow: {
+    500: '#EAB308',
+  },
+
   // Accent colors
   accent: {
-    primary: '#000080', // Navy blue (gradient start)
-    primaryLight: '#1D4ED8', // Blue (gradient end)
-    secondary: '#6366F1', // Indigo
+    primary: '#000000', // Black (gradient start)
+    primaryLight: '#334155', // Dark gray (gradient end)
+    secondary: '#475569', // Medium gray
     success: '#10B981', // Emerald
     warning: '#F59E0B', // Amber
     error: '#EF4444', // Red

@@ -52,6 +52,8 @@ const PlanChangeModal: React.FC<PlanChangeModalProps> = ({
   };
 
   const handlePlanSelect = async (plan: Plan) => {
+    console.log('🔄 Plan selection started:', plan.name);
+
     if (plan.name === currentPlan) {
       Alert.alert('Same Plan', 'You are already on this plan');
       return;
@@ -59,12 +61,22 @@ const PlanChangeModal: React.FC<PlanChangeModalProps> = ({
 
     try {
       setSelectedPlan(plan.id);
-      
+
       // Check if this is a downgrade (fewer cuts)
       const currentPlanData = plans.find(p => p.name === currentPlan);
       const isDowngrade = currentPlanData && plan.cuts_included_per_period < currentPlanData.cuts_included_per_period;
-      
+
+      console.log('📊 Plan change analysis:', {
+        currentPlan: currentPlanData?.name,
+        currentCuts: currentPlanData?.cuts_included_per_period,
+        newPlan: plan.name,
+        newCuts: plan.cuts_included_per_period,
+        isDowngrade,
+        priceId: plan.stripe_price_id,
+      });
+
       if (isDowngrade) {
+        console.log('⬇️ Scheduling downgrade...');
         // Use scheduled downgrade for downgrades
         await BillingService.scheduleDowngrade(plan.stripe_price_id);
         Alert.alert(
@@ -73,19 +85,22 @@ const PlanChangeModal: React.FC<PlanChangeModalProps> = ({
           [{ text: 'OK', onPress: onClose }]
         );
       } else {
-        // Use immediate upgrade for upgrades
-        await BillingService.openCheckout(plan.stripe_price_id);
+        console.log('⬆️ Upgrading subscription immediately...');
+        // Use updateSubscription for upgrades (immediate proration)
+        const result = await BillingService.updateSubscription(plan.stripe_price_id);
+        console.log('✅ Upgrade result:', result);
         Alert.alert(
-          'Upgrade Started',
-          'You will be redirected to complete your upgrade.',
+          'Upgrade Successful',
+          'Your plan has been upgraded! You can now enjoy your new benefits.',
           [{ text: 'OK', onPress: onClose }]
         );
       }
-      
+
       onPlanChange();
     } catch (error) {
-      console.error('Error changing plan:', error);
-      Alert.alert('Error', 'Failed to change plan. Please try again.');
+      console.error('❌ Error changing plan:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      Alert.alert('Error', `Failed to change plan: ${error.message || 'Please try again.'}`);
     } finally {
       setSelectedPlan(null);
     }

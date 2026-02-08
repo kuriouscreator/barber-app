@@ -127,7 +127,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             <LinearGradient 
               start={{x:0, y:0}}
               end={{x:0, y:1}}
-              colors={isLoading ? ["#CBD5E1", "#94A3B8"] : ["#000080", "#1D4ED8"]}
+              colors={isLoading ? ["#CBD5E1", "#94A3B8"] : [colors.black, colors.gray[700]]}
               style={[styles.button, isLoading && styles.buttonDisabled]}
             >
               <Text style={styles.buttonText}>
@@ -185,8 +185,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border.medium,
     borderRadius: borderRadius.button,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,

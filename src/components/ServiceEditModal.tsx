@@ -229,7 +229,7 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
               <LinearGradient 
                 start={{x:0, y:0}}
                 end={{x:0, y:1}}
-                colors={["#000080", "#1D4ED8"]}
+                colors={[colors.black, colors.gray[700]]}
                 style={styles.saveButton}
               >
                 <Text style={styles.saveButtonText}>Save Changes</Text>

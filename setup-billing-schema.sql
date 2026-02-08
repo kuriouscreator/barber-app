@@ -113,3 +113,4 @@ INSERT INTO plan_catalog (stripe_product_id, stripe_price_id, name, cuts_include
   ('prod_premium', 'price_premium_monthly', 'Premium Plan', 8, 'month'),
   ('prod_vip', 'price_vip_monthly', 'VIP Plan', 12, 'month')
 ON CONFLICT (stripe_price_id) DO NOTHING;
+

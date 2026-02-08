@@ -17,7 +17,7 @@ const TodaysScheduleCard: React.FC<TodaysScheduleCardProps> = ({ stats, onViewAl
     <LinearGradient
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      colors={['#4C1D95', '#1D4ED8']}
+      colors={['#4C1D95', colors.gray[700]]}
       style={styles.gradientCard}
     >
       <View style={styles.header}>

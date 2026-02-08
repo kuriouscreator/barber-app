@@ -28,7 +28,7 @@ const QuickActionsRow: React.FC<QuickActionsRowProps> = ({ actions }) => {
         };
       case 'bulkEdit':
         return {
-          background: '#8B5CF6',
+          background: colors.gray[800],
           icon: 'create-outline',
         };
       default:

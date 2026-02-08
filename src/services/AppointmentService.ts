@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Appointment } from '../types';
 import { BillingService } from './billing';
+import { ActivityLogger } from './ActivityLogger';
 
 export interface CreateAppointmentData {
   serviceId: string;
@@ -148,6 +149,24 @@ export class AppointmentService {
       }
 
       console.log('Appointment created successfully:', data.id);
+
+      // Log activity for appointment confirmed
+      try {
+        const formattedDate = new Date(appointmentData.appointmentDate).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        });
+
+        await ActivityLogger.logAppointmentConfirmed(
+          user.id,
+          data.id,
+          formattedDate
+        );
+      } catch (activityError) {
+        console.warn('Failed to log appointment confirmed activity:', activityError);
+        // Don't fail the appointment creation if activity logging fails
+      }
+
       return this.mapToAppointment(data);
     } catch (error) {
       console.error('Error creating appointment:', error);
@@ -216,6 +235,23 @@ export class AppointmentService {
         throw new Error('Failed to fetch cancelled appointment');
       }
 
+      // Log activity for appointment cancelled
+      try {
+        const formattedDate = new Date(appointment.appointment_date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        });
+
+        await ActivityLogger.logAppointmentCancelled(
+          user.id,
+          appointmentId,
+          formattedDate
+        );
+      } catch (activityError) {
+        console.warn('Failed to log appointment cancelled activity:', activityError);
+        // Don't fail the cancellation if activity logging fails
+      }
+
       return {
         appointment: this.mapToAppointment(appointment),
         cutsRestored: cutsRestored || false
@@ -268,6 +304,26 @@ export class AppointmentService {
       } catch (billingError) {
         console.warn('Failed to track cut usage:', billingError);
         // Don't fail the appointment completion if billing tracking fails
+      }
+
+      // Log activity for appointment completed
+      try {
+        // Get barber name from appointment data
+        const { data: barberData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', data.barber_id)
+          .single();
+
+        await ActivityLogger.logAppointmentCompleted(
+          user.id,
+          appointmentId,
+          barberData?.full_name || 'Your barber',
+          data.service_name
+        );
+      } catch (activityError) {
+        console.warn('Failed to log appointment completed activity:', activityError);
+        // Don't fail the completion if activity logging fails
       }
 
       return this.mapToAppointment(data);
@@ -328,6 +384,28 @@ export class AppointmentService {
       } catch (billingError) {
         console.warn('Failed to track cut usage:', billingError);
         // Don't fail the review submission if billing tracking fails
+      }
+
+      // Log activity for appointment completed (if it wasn't already completed)
+      if (appointmentData.status !== 'completed') {
+        try {
+          // Get barber name from appointment data
+          const { data: barberData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', data.barber_id)
+            .single();
+
+          await ActivityLogger.logAppointmentCompleted(
+            user.id,
+            appointmentId,
+            barberData?.full_name || 'Your barber',
+            data.service_name
+          );
+        } catch (activityError) {
+          console.warn('Failed to log appointment completed activity:', activityError);
+          // Don't fail the review submission if activity logging fails
+        }
       }
 
       return this.mapToAppointment(data);
@@ -532,6 +610,67 @@ export class AppointmentService {
     } catch (error) {
       console.error('Error rescheduling appointment:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get appointment with venue details
+   */
+  static async getAppointmentWithVenue(appointmentId: string): Promise<Appointment | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Get appointment data
+      const { data: appointment, error: appointmentError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', appointmentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (appointmentError || !appointment) {
+        console.error('Error fetching appointment:', appointmentError);
+        return null;
+      }
+
+      const mapped = this.mapToAppointment(appointment);
+
+      // Try to get barber info separately
+      try {
+        const { data: barber } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .eq('id', appointment.barber_id)
+          .single();
+
+        if (barber) {
+          mapped.barberName = barber.full_name;
+          mapped.barberAvatar = barber.avatar_url;
+        }
+      } catch (barberError) {
+        console.log('Could not fetch barber details:', barberError);
+        // Continue without barber details
+      }
+
+      // Mock venue data for now - you can replace this with actual venue data from database
+      mapped.venue = {
+        id: '1',
+        name: 'Crown & Blade Lounge',
+        address: appointment.location || '7683 Thornton Avenue',
+        city: 'Newark',
+        state: 'CA',
+        zipCode: '94560',
+        rating: 4.9,
+        reviewCount: 1200,
+        imageUrl: undefined, // Can be fetched from database
+        isTopRated: true,
+      };
+
+      return mapped;
+    } catch (error) {
+      console.error('Error fetching appointment with venue:', error);
+      return null;
     }
   }
 

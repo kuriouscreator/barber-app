@@ -1,102 +1,15 @@
+// Billing Link Manager for handling deep links from Stripe checkout
 import * as Linking from 'expo-linking';
-import { Alert } from 'react-native';
 
-export const billingScheme = 'barbercuts';
-export const billingSuccessUrl = `${billingScheme}://billing/success`;
-export const billingCancelUrl = `${billingScheme}://billing/cancel`;
-
-export interface BillingLinkHandler {
-  onSuccess?: (sessionId?: string) => void;
-  onCancel?: () => void;
+interface BillingLinkHandler {
+  onSuccess: (sessionId: string) => void;
+  onCancel: () => void;
 }
 
-export class BillingLinkManager {
-  private static instance: BillingLinkManager;
+class BillingLinkManager {
   private handlers: BillingLinkHandler[] = [];
 
-  static getInstance(): BillingLinkManager {
-    if (!BillingLinkManager.instance) {
-      BillingLinkManager.instance = new BillingLinkManager();
-    }
-    return BillingLinkManager.instance;
-  }
-
-  constructor() {
-    this.setupLinkListener();
-  }
-
-  private setupLinkListener() {
-    // Handle deep links when app is already running
-    Linking.addEventListener('url', this.handleDeepLink);
-    
-    // Handle deep links when app is opened from a closed state
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        this.handleDeepLink({ url });
-      }
-    });
-  }
-
-  private handleDeepLink = (event: { url: string }) => {
-    const { url } = event;
-    console.log('Received deep link:', url);
-
-    try {
-      const parsedUrl = Linking.parse(url);
-      
-      if (parsedUrl.scheme === billingScheme && parsedUrl.host === 'billing') {
-        if (parsedUrl.path === '/success') {
-          const sessionId = parsedUrl.queryParams?.session_id as string;
-          this.handleBillingSuccess(sessionId);
-        } else if (parsedUrl.path === '/cancel') {
-          this.handleBillingCancel();
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing deep link:', error);
-    }
-  };
-
-  private handleBillingSuccess(sessionId?: string) {
-    console.log('Billing success:', sessionId);
-    
-    // Notify all registered handlers
-    this.handlers.forEach(handler => {
-      if (handler.onSuccess) {
-        handler.onSuccess(sessionId);
-      }
-    });
-
-    // Show success message
-    Alert.alert(
-      'Success!',
-      'Your subscription has been activated. You can now start booking haircuts.',
-      [{ text: 'OK' }]
-    );
-  }
-
-  private handleBillingCancel() {
-    console.log('Billing cancelled');
-    
-    // Notify all registered handlers
-    this.handlers.forEach(handler => {
-      if (handler.onCancel) {
-        handler.onCancel();
-      }
-    });
-
-    // Show cancel message
-    Alert.alert(
-      'Cancelled',
-      'Subscription setup was cancelled. You can try again anytime.',
-      [{ text: 'OK' }]
-    );
-  }
-
-  /**
-   * Register a handler for billing deep links
-   */
-  addHandler(handler: BillingLinkHandler): () => void {
+  addHandler(handler: BillingLinkHandler) {
     this.handlers.push(handler);
     
     // Return unsubscribe function
@@ -108,21 +21,27 @@ export class BillingLinkManager {
     };
   }
 
-  /**
-   * Remove all handlers
-   */
-  removeAllHandlers() {
-    this.handlers = [];
+  handleUrl(url: string) {
+    // Parse the URL to determine if it's a success or cancel
+    if (url.includes('success') || url.includes('session_id')) {
+      // Extract session ID from URL if present
+      const sessionId = this.extractSessionId(url);
+      this.handlers.forEach(handler => handler.onSuccess(sessionId));
+    } else if (url.includes('cancel')) {
+      this.handlers.forEach(handler => handler.onCancel());
+    }
   }
 
-  /**
-   * Clean up listeners
-   */
-  cleanup() {
-    Linking.removeAllListeners('url');
-    this.removeAllHandlers();
+  private extractSessionId(url: string): string {
+    // Simple session ID extraction - can be enhanced based on actual URL structure
+    const match = url.match(/session_id=([^&]+)/);
+    return match ? match[1] : 'unknown';
   }
 }
 
-// Export singleton instance
-export const billingLinkManager = BillingLinkManager.getInstance();
+export const billingLinkManager = new BillingLinkManager();
+
+// Set up global URL handler
+Linking.addEventListener('url', (event) => {
+  billingLinkManager.handleUrl(event.url);
+});

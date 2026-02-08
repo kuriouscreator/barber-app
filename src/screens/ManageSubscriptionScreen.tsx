@@ -414,7 +414,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.button,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: colors.accent.primary,
   },
   changePlanButtonText: {
     color: colors.accent.primary,

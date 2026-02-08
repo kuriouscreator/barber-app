@@ -14,16 +14,59 @@ import { colors } from '../theme/colors';
 import SignInScreen from '../screens/SignInScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import HomeScreen from '../screens/HomeScreen';
+import HomeScreenNative from '../screens/HomeScreenNative'; // New native version
 import BookScreen from '../screens/BookScreen';
 import AppointmentsScreen from '../screens/AppointmentsScreen';
+import RewardsScreen from '../screens/RewardsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AdminScreen from '../screens/AdminScreen';
 import BarberProfileScreen from '../screens/BarberProfileScreen';
 import BarberDashboardScreen from '../screens/BarberDashboardScreen';
 import BarberWeeklyScheduleScreen from '../screens/BarberWeeklyScheduleScreen';
+import AppointmentDetailsScreen from '../screens/AppointmentDetailsScreen';
+import ActivityScreen from '../screens/ActivityScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const HomeStack = createStackNavigator();
+
+// Home Stack Navigator (includes Activity screen to keep tab bar visible)
+const HomeStackNavigator = () => {
+  const { state } = useApp();
+  const isBarber = state.user?.role === 'barber';
+
+  return (
+    <HomeStack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: colors.white,
+          borderBottomColor: colors.border.light,
+          borderBottomWidth: 1,
+        },
+        headerTitleStyle: {
+          color: colors.text.primary,
+          fontSize: 18,
+          fontWeight: '600',
+        },
+        headerTintColor: colors.text.primary,
+      }}
+    >
+      <HomeStack.Screen
+        name="HomeMain"
+        component={isBarber ? BarberDashboardScreen : HomeScreenNative}
+        options={{ headerShown: false }}
+      />
+      <HomeStack.Screen
+        name="Activity"
+        component={ActivityScreen}
+        options={{
+          title: 'Activity',
+          headerBackTitle: 'Back',
+        }}
+      />
+    </HomeStack.Navigator>
+  );
+};
 
 const MainTabNavigator = () => {
   const { state } = useApp();
@@ -38,17 +81,19 @@ const MainTabNavigator = () => {
     if (route.name === 'Home') {
       iconName = focused ? 'home' : 'home-outline';
     } else if (route.name === 'Book') {
-      iconName = focused ? 'add-circle' : 'add-circle-outline';
+      iconName = focused ? 'calendar' : 'calendar-outline';
     } else if (route.name === 'Appointments') {
       // For barbers, this is the Schedule tab
-      iconName = isBarber 
+      iconName = isBarber
         ? (focused ? 'calendar' : 'calendar-outline')
-        : (focused ? 'checkmark-circle' : 'checkmark-circle-outline');
+        : (focused ? 'calendar-sharp' : 'calendar-outline');
+    } else if (route.name === 'Rewards') {
+      iconName = focused ? 'gift' : 'gift-outline';
     } else if (route.name === 'Profile') {
       iconName = focused ? 'person' : 'person-outline';
     } else if (route.name === 'Admin') {
       // For barbers, this is the Services tab
-      iconName = isBarber 
+      iconName = isBarber
         ? (focused ? 'cut' : 'cut-outline')
         : (focused ? 'settings' : 'settings-outline');
     } else {
@@ -57,7 +102,7 @@ const MainTabNavigator = () => {
 
     return (
       <View style={{ position: 'relative' }}>
-        <Ionicons name={iconName} size={26} color={color} />
+        <Ionicons name={iconName} size={20} color={color} />
         {route.name === 'Appointments' && appointmentNotifications > 0 && (
           <View style={{
             position: 'absolute',
@@ -87,14 +132,14 @@ const MainTabNavigator = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color }) => renderTabIcon(route, focused, color),
-        tabBarActiveTintColor: colors.accent.primary,
-        tabBarInactiveTintColor: colors.gray[500],
+        tabBarActiveTintColor: colors.black,
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
           backgroundColor: colors.white,
-          borderTopColor: colors.border.light,
+          borderTopColor: 'colors.gray[100]',
           borderTopWidth: 1,
           paddingBottom: 30,
-          paddingTop: 12,
+          paddingTop: 13,
           height: 100,
         },
         tabBarLabelStyle: {
@@ -119,10 +164,10 @@ const MainTabNavigator = () => {
         },
       })}
     >
-      <Tab.Screen 
-        name="Home" 
-        component={isBarber ? BarberDashboardScreen : HomeScreen} 
-        options={{ title: 'Home' }}
+      <Tab.Screen
+        name="Home"
+        component={HomeStackNavigator}
+        options={{ title: 'Home', headerShown: false }}
       />
       {!isBarber && (
         <Tab.Screen 
@@ -132,29 +177,36 @@ const MainTabNavigator = () => {
         />
       )}
       {!isBarber && (
-        <Tab.Screen 
-          name="Appointments" 
-          component={AppointmentsScreen} 
+        <Tab.Screen
+          name="Appointments"
+          component={AppointmentsScreen}
           options={{ title: 'Appointments' }}
         />
       )}
       {isBarber && (
-        <Tab.Screen 
-          name="Appointments" 
-          component={BarberWeeklyScheduleScreen} 
+        <Tab.Screen
+          name="Appointments"
+          component={BarberWeeklyScheduleScreen}
           options={{ title: 'Schedule' }}
         />
       )}
+      {!isBarber && (
+        <Tab.Screen
+          name="Rewards"
+          component={RewardsScreen}
+          options={{ title: 'Rewards' }}
+        />
+      )}
       {isBarber && (
-        <Tab.Screen 
-          name="Admin" 
-          component={AdminScreen} 
+        <Tab.Screen
+          name="Admin"
+          component={AdminScreen}
           options={{ title: 'Services' }}
         />
       )}
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileScreen} 
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
         options={{ title: 'Profile' }}
       />
     </Tab.Navigator>
@@ -184,19 +236,24 @@ const AppNavigator = () => {
       >
         {session && state.user ? (
           <>
-            <Stack.Screen 
-              name="Main" 
-              component={MainTabNavigator} 
+            <Stack.Screen
+              name="Main"
+              component={MainTabNavigator}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="Subscription" 
-              component={SubscriptionScreen} 
+            <Stack.Screen
+              name="Subscription"
+              component={SubscriptionScreen}
               options={{ title: 'Choose Subscription' }}
             />
-            <Stack.Screen 
-              name="BarberProfile" 
-              component={BarberProfileScreen} 
+            <Stack.Screen
+              name="BarberProfile"
+              component={BarberProfileScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AppointmentDetails"
+              component={AppointmentDetailsScreen}
               options={{ headerShown: false }}
             />
           </>

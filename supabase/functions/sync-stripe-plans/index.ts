@@ -56,6 +56,7 @@ serve(async (req) => {
         cuts_included_per_period: cutsIncluded,
         interval: interval,
         active: true,
+        price_amount: defaultPrice.unit_amount || 0,
         updated_at: new Date().toISOString(),
       })
     }
@@ -97,3 +98,4 @@ serve(async (req) => {
     )
   }
 })
+

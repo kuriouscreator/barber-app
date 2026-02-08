@@ -52,6 +52,10 @@ export interface Appointment {
   reviewText?: string;
   reviewPhotoUrl?: string;
   barberId: string;
+  barberName?: string;
+  barberAvatar?: string;
+  venueId?: string;
+  venue?: VenueDetails;
   createdAt?: string;
   updatedAt?: string;
   // Legacy fields for backward compatibility
@@ -72,6 +76,20 @@ export interface Barber {
   specialties: string[];
   availability: Availability[];
   scheduleExceptions: ScheduleException[];
+  avatar?: string;
+}
+
+export interface VenueDetails {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  rating: number;
+  reviewCount: number;
+  imageUrl?: string;
+  isTopRated?: boolean;
 }
 
 export interface Availability {
@@ -112,12 +130,17 @@ export type RootStackParamList = {
     barberRating: number;
     barberReviewCount: number;
   };
+  AppointmentDetails: {
+    appointment: Appointment;
+  };
+  Activity: undefined;
 };
 
 export type MainTabParamList = {
   Home: undefined;
   Book: { rescheduleAppointment?: RescheduleAppointment; rebookAppointment?: RescheduleAppointment } | undefined;
-  Appointments: undefined;
+  Appointments: { appointmentId?: string } | undefined;
+  Rewards: undefined;
   Profile: undefined;
   Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
   BarberProfile: {

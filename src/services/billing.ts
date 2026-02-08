@@ -1,6 +1,7 @@
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../lib/supabase';
-import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { initPaymentSheet, presentPaymentSheet } from '@stripe/stripe-react-native';
+import { BUSINESS_INFO } from '../constants/business';
 
 export interface Plan {
   id: string;
@@ -10,6 +11,7 @@ export interface Plan {
   cuts_included_per_period: number;
   interval: 'month' | 'year';
   active: boolean;
+  price_amount?: number;
 }
 
 export interface UserSubscription {
@@ -22,8 +24,11 @@ export interface UserSubscription {
   current_period_end: string;
   cuts_included: number;
   cuts_used: number;
+  cancel_at_period_end: boolean;
   created_at: string;
   updated_at: string;
+  price_amount?: number;
+  interval?: 'month' | 'year';
   // Scheduled change fields
   scheduled_plan_name?: string;
   scheduled_price_id?: string;
@@ -111,6 +116,7 @@ export class BillingService {
     }
 
     console.log('✅ Subscription found for user:', user.id, data);
+    console.log('💰 Price amount from DB:', data.price_amount, 'Type:', typeof data.price_amount);
     return data;
   }
 
@@ -147,12 +153,15 @@ export class BillingService {
         throw new Error(`Failed to create payment intent: ${error.message}`);
       }
 
-      // Initialize Stripe
-      const { initPaymentSheet, presentPaymentSheet } = require('@stripe/stripe-react-native');
-      
+      if (!data?.clientSecret) {
+        throw new Error('No client secret returned from server');
+      }
+
+      console.log('Initializing payment sheet...');
+
       // Initialize the payment sheet
       const { error: initError } = await initPaymentSheet({
-        merchantDisplayName: 'BarberCuts',
+        merchantDisplayName: BUSINESS_INFO.merchantDisplayName,
         paymentIntentClientSecret: data.clientSecret,
         customerId: data.customerId,
         customerEphemeralKeySecret: data.ephemeralKey,
@@ -164,8 +173,11 @@ export class BillingService {
       });
 
       if (initError) {
+        console.error('Payment sheet init error:', initError);
         throw new Error(initError.message);
       }
+
+      console.log('Presenting payment sheet...');
 
       // Present the payment sheet
       const { error: presentError } = await presentPaymentSheet();
@@ -174,12 +186,13 @@ export class BillingService {
         if (presentError.code === 'Canceled') {
           throw new Error('Payment was cancelled');
         }
+        console.error('Payment sheet present error:', presentError);
         throw new Error(presentError.message);
       }
 
       // Payment succeeded - Realtime will handle the subscription update
-      console.log('Payment successful, waiting for webhook to update subscription...');
-      
+      console.log('Payment successful! Subscription will be activated via webhook.');
+
     } catch (error) {
       console.error('Error with native checkout:', error);
       throw error;
@@ -341,5 +354,92 @@ export class BillingService {
   static async refreshSubscription(): Promise<void> {
     // This will be called by the app context to refresh subscription data
     // The actual refresh logic is handled in AppContext
+  }
+
+  /**
+   * Get customer sheet configuration for managing payment methods
+   */
+  static async getCustomerSheetConfig(): Promise<{
+    customerId: string;
+    ephemeralKeySecret: string;
+    setupIntentClientSecret: string;
+    publishableKey: string;
+    defaultPaymentMethod?: {
+      brand: string;
+      last4: string;
+      expMonth: number;
+      expYear: number;
+    };
+  }> {
+    const { data, error } = await supabase.functions.invoke('stripe-customer-sheet-config', {
+      body: {}
+    });
+
+    if (error) {
+      throw new Error(`Failed to get customer sheet config: ${error.message}`);
+    }
+
+    if (!data?.customerId || !data?.ephemeralKeySecret || !data?.setupIntentClientSecret) {
+      throw new Error('Invalid customer sheet config returned');
+    }
+
+    return data;
+  }
+
+  /**
+   * Update subscription to a new plan with proration
+   */
+  static async updateSubscription(newPriceId: string): Promise<{
+    success: boolean;
+    message: string;
+    subscriptionId: string;
+  }> {
+    const { data, error } = await supabase.functions.invoke('stripe-update-subscription', {
+      body: { newPriceId }
+    });
+
+    if (error) {
+      throw new Error(`Failed to update subscription: ${error.message}`);
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'Failed to update subscription');
+    }
+
+    return data;
+  }
+
+  /**
+   * Toggle auto-renew for subscription
+   * @param autoRenew - true to enable auto-renew, false to cancel at period end
+   */
+  static async toggleAutoRenew(autoRenew: boolean): Promise<{
+    success: boolean;
+    autoRenew: boolean;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: number;
+  }> {
+    const { data, error } = await supabase.functions.invoke('stripe-toggle-auto-renew', {
+      body: { autoRenew }
+    });
+
+    if (error) {
+      throw new Error(`Failed to toggle auto-renew: ${error.message}`);
+    }
+
+    if (!data?.success) {
+      throw new Error('Failed to update auto-renew setting');
+    }
+
+    return data;
+  }
+
+  /**
+   * Check if subscription will auto-renew (opposite of cancel_at_period_end)
+   */
+  static willAutoRenew(subscription: UserSubscription | null): boolean {
+    if (!subscription) return false;
+    // Check if subscription is active and NOT set to cancel at period end
+    return subscription.status === 'active' && !subscription.cancel_at_period_end;
   }
 }

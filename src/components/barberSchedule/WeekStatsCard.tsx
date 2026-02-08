@@ -22,7 +22,7 @@ const WeekStatsCard: React.FC<WeekStatsCardProps> = ({
 }) => {
   return (
     <LinearGradient
-      colors={['#4F46E5', '#3B82F6']}
+      colors={[colors.gray[700], '#3B82F6']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}

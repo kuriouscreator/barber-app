@@ -15,8 +15,16 @@ export class CutTrackingService {
   static async getCutStatus(): Promise<CutStatus> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
+
+      // Silently return defaults if no user (expected during sign-out)
       if (!user) {
-        throw new Error('User not authenticated');
+        return {
+          remainingCuts: 0,
+          canBook: false,
+          totalCuts: 0,
+          usedCuts: 0,
+          upcomingAppointments: 0
+        };
       }
 
       // Get remaining cuts and booking eligibility
@@ -36,7 +44,7 @@ export class CutTrackingService {
       const subscription = subscriptionResult.data;
 
       // Calculate upcoming appointments
-      const upcomingAppointments = subscription 
+      const upcomingAppointments = subscription
         ? subscription.cuts_included - subscription.cuts_used - remainingCuts
         : 0;
 
@@ -48,6 +56,7 @@ export class CutTrackingService {
         upcomingAppointments: Math.max(0, upcomingAppointments)
       };
     } catch (error) {
+      // Only log actual errors, not authentication issues
       console.error('Error getting cut status:', error);
       return {
         remainingCuts: 0,
@@ -65,7 +74,9 @@ export class CutTrackingService {
   static async getRemainingCuts(): Promise<number> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+
+      // Silently return 0 if no user (expected during sign-out)
+      if (!user) return 0;
 
       const { data: remainingCuts, error } = await supabase
         .rpc('get_user_remaining_cuts', { p_user_id: user.id });
@@ -88,7 +99,9 @@ export class CutTrackingService {
   static async canBookAppointment(): Promise<boolean> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+
+      // Silently return false if no user (expected during sign-out)
+      if (!user) return false;
 
       const { data: canBook, error } = await supabase
         .rpc('can_user_book_appointment', { p_user_id: user.id });

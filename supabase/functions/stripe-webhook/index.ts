@@ -119,7 +119,7 @@ serve(async (req) => {
 async function handleSubscriptionChange(supabaseClient: any, subscription: Stripe.Subscription) {
   try {
     console.log('Starting subscription change handling for:', subscription.id)
-    
+
     const customerId = subscription.customer as string
     const priceId = subscription.items.data[0]?.price.id
 
@@ -148,6 +148,7 @@ async function handleSubscriptionChange(supabaseClient: any, subscription: Strip
     }
 
     console.log('Found user ID:', customerData.user_id)
+    const userId = customerData.user_id
 
   // Get plan details from Stripe (source of truth)
   const price = await stripe.prices.retrieve(priceId, {
@@ -166,7 +167,7 @@ async function handleSubscriptionChange(supabaseClient: any, subscription: Strip
   // Check if this is a new subscription or an update to existing one
   const { data: existingSub } = await supabaseClient
     .from('user_subscriptions')
-    .select('stripe_subscription_id, current_period_start, cuts_used, plan_name, stripe_price_id')
+    .select('stripe_subscription_id, current_period_start, cuts_used, plan_name, stripe_price_id, cuts_included')
     .eq('user_id', customerData.user_id)
     .single()
 
@@ -208,6 +209,8 @@ async function handleSubscriptionChange(supabaseClient: any, subscription: Strip
     current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
     cuts_included: cutsIncluded,
     cuts_used: cutsUsed,
+    cancel_at_period_end: subscription.cancel_at_period_end || false,
+    price_amount: price.unit_amount || 0,
     updated_at: new Date().toISOString(),
   }
 
@@ -221,6 +224,57 @@ async function handleSubscriptionChange(supabaseClient: any, subscription: Strip
     }
 
     console.log('Subscription updated successfully:', subscription.id)
+
+    // Handle rewards points for new subscriptions
+    if (isNewSubscription) {
+      console.log('New subscription detected, awarding signup bonus and setting subscription start date')
+
+      // Award signup bonus (100 points)
+      await awardRewardsPoints(supabaseClient, userId, 100, 'signup_bonus', 'Welcome bonus for joining!')
+
+      // Set subscription_start_date if not already set
+      const { data: profileData } = await supabaseClient
+        .from('profiles')
+        .select('subscription_start_date')
+        .eq('id', userId)
+        .single()
+
+      if (!profileData?.subscription_start_date) {
+        await supabaseClient
+          .from('profiles')
+          .update({ subscription_start_date: new Date().toISOString() })
+          .eq('id', userId)
+        console.log('Set subscription_start_date for user:', userId)
+      }
+
+      // Check if this subscription came from a referral
+      await processReferralCompletion(supabaseClient, userId)
+    }
+
+    // Award upgrade bonus for plan changes
+    if (isPlanChange && existingSub) {
+      console.log('Plan change detected, checking if it\'s an upgrade')
+      await handlePlanUpgrade(supabaseClient, userId, existingSub.plan_name, planName, cutsIncluded, existingSub.cuts_included, subscription.id)
+    }
+
+    // Award monthly loyalty bonus on period renewal
+    if (isNewPeriod && !isNewSubscription) {
+      console.log('New billing period detected, awarding monthly loyalty bonus')
+      await awardMonthlyLoyaltyPoints(supabaseClient, userId, planName, subscription.id)
+
+      // Log membership renewed activity
+      const expiryDate = new Date(subscription.current_period_end * 1000)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+      await logActivityToDatabase(supabaseClient, userId, 'membership_renewed', {
+        tierName: planName,
+        expiryDate,
+        subscriptionId: subscription.id,
+      })
+    }
+
+    // Check for anniversary milestones
+    await checkAnniversaryMilestones(supabaseClient, userId)
   } catch (error) {
     console.error('Error in handleSubscriptionChange:', error)
     throw error
@@ -259,6 +313,28 @@ async function handleInvoicePaid(supabaseClient: any, invoice: Stripe.Invoice) {
   if (invoice.subscription) {
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string)
     await handleSubscriptionChange(supabaseClient, subscription)
+
+    // Log payment successful activity
+    const customerId = invoice.customer as string
+    const { data: customerData } = await supabaseClient
+      .from('billing_customers')
+      .select('user_id')
+      .eq('stripe_customer_id', customerId)
+      .single()
+
+    if (customerData && invoice.amount_paid) {
+      // Get plan details
+      const price = await stripe.prices.retrieve(subscription.items.data[0]?.price.id, {
+        expand: ['product']
+      })
+      const product = price.product as Stripe.Product
+
+      await logActivityToDatabase(supabaseClient, customerData.user_id, 'payment_successful', {
+        amount: (invoice.amount_paid / 100).toFixed(2),
+        tierName: product.name,
+        invoiceId: invoice.id,
+      })
+    }
   }
 }
 
@@ -405,5 +481,386 @@ async function handleSubscriptionScheduleCanceled(supabaseClient: any, schedule:
   } catch (error) {
     console.error('Error in handleSubscriptionScheduleCanceled:', error)
     throw error
+  }
+}
+
+// Rewards System Helper Functions
+
+async function handlePlanUpgrade(
+  supabaseClient: any,
+  userId: string,
+  oldPlanName: string,
+  newPlanName: string,
+  newCutsIncluded: number,
+  oldCutsIncluded: number,
+  subscriptionId: string
+) {
+  try {
+    console.log('handlePlanUpgrade called with:', {
+      userId,
+      oldPlanName,
+      newPlanName,
+      oldCutsIncluded,
+      newCutsIncluded,
+      subscriptionId
+    })
+
+    // Check if this is an upgrade (more cuts = higher tier)
+    if (newCutsIncluded <= oldCutsIncluded) {
+      console.log('Plan change is not an upgrade (or same tier), skipping reward')
+      console.log(`Comparison: new ${newCutsIncluded} <= old ${oldCutsIncluded}`)
+      return
+    }
+
+    console.log(`✅ Plan upgraded from ${oldPlanName} (${oldCutsIncluded} cuts) to ${newPlanName} (${newCutsIncluded} cuts)`)
+
+    // Calculate reward points based on tier jump
+    // Base reward: 250 points
+    // Additional 100 points per tier level jumped
+    const tierDifference = Math.floor((newCutsIncluded - oldCutsIncluded) / 2) // Rough tier calculation
+    const bonusPoints = 250 + (tierDifference * 100)
+
+    console.log(`Calculated bonus: ${bonusPoints} points (tierDiff: ${tierDifference})`)
+
+    // Award the upgrade bonus
+    console.log('Awarding rewards points...')
+    await awardRewardsPoints(
+      supabaseClient,
+      userId,
+      bonusPoints,
+      'plan_upgrade',
+      `Upgraded from ${oldPlanName} to ${newPlanName}`,
+      subscriptionId
+    )
+    console.log('✅ Rewards points awarded')
+
+    // Log tier upgrade activity
+    console.log('Logging membership_upgraded activity...')
+    await logActivityToDatabase(supabaseClient, userId, 'membership_upgraded', {
+      oldTier: oldPlanName,
+      newTier: newPlanName,
+      points: bonusPoints,
+      subscriptionId,
+    })
+    console.log('✅ Activity logged to database')
+
+    console.log(`🎉 Successfully awarded ${bonusPoints} points for plan upgrade`)
+  } catch (error) {
+    console.error('❌ Error handling plan upgrade:', error)
+    console.error('Error stack:', error.stack)
+  }
+}
+
+async function awardRewardsPoints(
+  supabaseClient: any,
+  userId: string,
+  points: number,
+  source: string,
+  description: string,
+  referenceId?: string
+) {
+  try {
+    console.log(`Awarding ${points} points to user ${userId} for ${source}`)
+
+    // Insert reward points transaction
+    const { error: insertError } = await supabaseClient
+      .from('reward_points')
+      .insert({
+        user_id: userId,
+        points: points,
+        transaction_type: 'earned',
+        source: source,
+        description: description,
+        reference_id: referenceId,
+      })
+
+    if (insertError) {
+      console.error('Error inserting reward points:', insertError)
+      return false
+    }
+
+    // Update total_points in profiles
+    const { data: currentBalance } = await supabaseClient.rpc('get_user_points_balance', {
+      p_user_id: userId,
+    })
+
+    await supabaseClient
+      .from('profiles')
+      .update({ total_points: currentBalance || points })
+      .eq('id', userId)
+
+    // Log activity
+    await logActivityToDatabase(supabaseClient, userId, 'reward_earned', {
+      points,
+      reason: description,
+      referenceId,
+    })
+
+    console.log(`Successfully awarded ${points} points to user ${userId}`)
+    return true
+  } catch (error) {
+    console.error('Error awarding reward points:', error)
+    return false
+  }
+}
+
+async function awardMonthlyLoyaltyPoints(
+  supabaseClient: any,
+  userId: string,
+  planName: string,
+  subscriptionId: string
+) {
+  try {
+    // Determine tier multiplier based on plan name
+    let multiplier = 1.0
+    const planLower = planName.toLowerCase()
+
+    if (planLower.includes('premium') || planLower.includes('pro')) {
+      multiplier = 2.0
+    } else if (planLower.includes('vip') || planLower.includes('elite')) {
+      multiplier = 3.0
+    }
+
+    const basePoints = 100
+    const points = Math.floor(basePoints * multiplier)
+
+    await awardRewardsPoints(
+      supabaseClient,
+      userId,
+      points,
+      'monthly_loyalty',
+      `Monthly loyalty bonus - ${planName}`,
+      subscriptionId
+    )
+  } catch (error) {
+    console.error('Error awarding monthly loyalty points:', error)
+  }
+}
+
+async function checkAnniversaryMilestones(supabaseClient: any, userId: string) {
+  try {
+    // Get user profile with subscription start date
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('subscription_start_date, last_anniversary_reward')
+      .eq('id', userId)
+      .single()
+
+    if (!profile?.subscription_start_date) {
+      return
+    }
+
+    const subscriptionStart = new Date(profile.subscription_start_date)
+    const now = new Date()
+    const monthsDiff = getMonthsDifference(subscriptionStart, now)
+
+    let points = 0
+    let shouldAward = false
+    let description = ''
+
+    // Check 6-month milestone
+    if (monthsDiff === 6 && !hasRewardedMilestone(profile.last_anniversary_reward, 6)) {
+      points = 750
+      shouldAward = true
+      description = '6 month anniversary bonus'
+    }
+    // Check yearly milestones
+    else if (monthsDiff >= 12) {
+      const yearsSinceStart = Math.floor(monthsDiff / 12)
+      const lastRewardMonths = profile.last_anniversary_reward
+        ? getMonthsDifference(subscriptionStart, new Date(profile.last_anniversary_reward))
+        : 0
+      const lastRewardYears = Math.floor(lastRewardMonths / 12)
+
+      if (yearsSinceStart > lastRewardYears) {
+        points = yearsSinceStart === 1 ? 1500 : 2000
+        shouldAward = true
+        description = `${yearsSinceStart} year anniversary bonus`
+      }
+    }
+
+    if (shouldAward) {
+      await awardRewardsPoints(supabaseClient, userId, points, 'anniversary', description)
+
+      await supabaseClient
+        .from('profiles')
+        .update({ last_anniversary_reward: now.toISOString() })
+        .eq('id', userId)
+
+      console.log(`Awarded ${points} anniversary points to user ${userId}`)
+    }
+  } catch (error) {
+    console.error('Error checking anniversary milestones:', error)
+  }
+}
+
+async function processReferralCompletion(supabaseClient: any, newUserId: string) {
+  try {
+    // Find pending referral for this user
+    const { data: referral } = await supabaseClient
+      .from('referrals')
+      .select('*')
+      .eq('referred_user_id', newUserId)
+      .eq('status', 'pending')
+      .single()
+
+    if (!referral) {
+      console.log('No pending referral found for user:', newUserId)
+      return
+    }
+
+    // Get referred user's name
+    const { data: referredUser } = await supabaseClient
+      .from('profiles')
+      .select('full_name')
+      .eq('id', newUserId)
+      .single()
+
+    // Award points to referrer
+    const referralBonus = 500
+    await awardRewardsPoints(
+      supabaseClient,
+      referral.referrer_user_id,
+      referralBonus,
+      'referral',
+      'Referral bonus',
+      referral.id
+    )
+
+    // Update referral status
+    await supabaseClient
+      .from('referrals')
+      .update({
+        status: 'completed',
+        points_awarded: referralBonus,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', referral.id)
+
+    // Log referral completed activity
+    await logActivityToDatabase(supabaseClient, referral.referrer_user_id, 'referral_completed', {
+      referredName: referredUser?.full_name || 'New user',
+      points: referralBonus,
+      referralId: referral.id,
+    })
+
+    console.log(`Completed referral ${referral.id}, awarded ${referralBonus} points to ${referral.referrer_user_id}`)
+  } catch (error) {
+    console.error('Error processing referral completion:', error)
+  }
+}
+
+function getMonthsDifference(date1: Date, date2: Date): number {
+  return (
+    (date2.getFullYear() - date1.getFullYear()) * 12 +
+    (date2.getMonth() - date1.getMonth())
+  )
+}
+
+function hasRewardedMilestone(lastReward: string | null, months: number): boolean {
+  if (!lastReward) return false
+  const lastRewardDate = new Date(lastReward)
+  const now = new Date()
+  const monthsSinceLastReward = getMonthsDifference(lastRewardDate, now)
+  return monthsSinceLastReward < months
+}
+
+// Activity logging configurations
+const ACTIVITY_CONFIGS: Record<string, any> = {
+  reward_earned: {
+    icon: 'gift',
+    titleTemplate: 'Reward Earned',
+    descriptionTemplate: '+{points} points for {reason}',
+    badgeText: '+{points}',
+    badgeColor: 'blue',
+  },
+  membership_renewed: {
+    icon: 'sparkles',
+    titleTemplate: 'Membership Renewed',
+    descriptionTemplate: '{tierName} membership extended to {expiryDate}',
+    badgeText: 'Auto',
+    badgeColor: 'orange',
+  },
+  payment_successful: {
+    icon: 'card',
+    titleTemplate: 'Payment Processed',
+    descriptionTemplate: '${amount} for {tierName} subscription',
+    badgeText: null,
+    badgeColor: null,
+  },
+  payment_failed: {
+    icon: 'alert-circle',
+    titleTemplate: 'Payment Failed',
+    descriptionTemplate: 'Update payment method to continue service',
+    badgeText: 'Action Required',
+    badgeColor: 'red',
+  },
+  referral_completed: {
+    icon: 'people',
+    titleTemplate: 'Referral Bonus',
+    descriptionTemplate: '{referredName} joined with your code',
+    badgeText: '+{points}',
+    badgeColor: 'green',
+  },
+  membership_upgraded: {
+    icon: 'trending-up',
+    titleTemplate: 'Plan Upgraded',
+    descriptionTemplate: 'Upgraded from {oldTier} to {newTier}',
+    badgeText: '+{points}',
+    badgeColor: 'purple',
+  },
+  profile_updated: {
+    icon: 'person',
+    titleTemplate: 'Profile Updated',
+    descriptionTemplate: 'Personal information updated successfully',
+    badgeText: null,
+    badgeColor: null,
+  },
+  appointment_rescheduled: {
+    icon: 'calendar',
+    titleTemplate: 'Appointment Rescheduled',
+    descriptionTemplate: 'Rescheduled to {newDate} at {newTime}',
+    badgeText: null,
+    badgeColor: null,
+  },
+}
+
+function interpolateTemplate(template: string, data: Record<string, any>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    return data[key]?.toString() || match
+  })
+}
+
+async function logActivityToDatabase(
+  supabaseClient: any,
+  userId: string,
+  activityType: string,
+  metadata: Record<string, any> = {}
+) {
+  try {
+    const config = ACTIVITY_CONFIGS[activityType]
+    if (!config) {
+      console.log(`No activity config for: ${activityType}`)
+      return
+    }
+
+    const title = interpolateTemplate(config.titleTemplate, metadata)
+    const description = interpolateTemplate(config.descriptionTemplate, metadata)
+    const badgeText = config.badgeText ? interpolateTemplate(config.badgeText, metadata) : null
+
+    await supabaseClient.from('user_activities').insert({
+      user_id: userId,
+      activity_type: activityType,
+      title,
+      description,
+      metadata,
+      icon_type: config.icon,
+      badge_text: badgeText,
+      badge_color: config.badgeColor,
+    })
+
+    console.log(`✅ Activity logged: ${activityType} for user ${userId}`)
+  } catch (error) {
+    console.error('Error logging activity:', error)
   }
 }

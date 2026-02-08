@@ -221,3 +221,7 @@ insert-*.js
 
 # Backup files
 *.backup
+
+# MCP configuration (contains credentials)
+.mcp.json
+.claude/mcp.json

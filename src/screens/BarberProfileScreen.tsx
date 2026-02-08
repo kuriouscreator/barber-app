@@ -230,10 +230,10 @@ const BarberProfileScreen: React.FC<BarberProfileScreenProps> = ({ navigation, r
             <View style={styles.aboutSection}>
               <Text style={styles.sectionTitle}>Services</Text>
               <View style={styles.servicesList}>
-                <Text style={styles.serviceItem}>• Classic Haircut</Text>
+                <Text style={styles.serviceItem}>• Haircut</Text>
                 <Text style={styles.serviceItem}>• Beard Trim</Text>
-                <Text style={styles.serviceItem}>• Haircut & Beard Trim</Text>
-                <Text style={styles.serviceItem}>• Premium Package</Text>
+                <Text style={styles.serviceItem}>• Hair Styling</Text>
+                <Text style={styles.serviceItem}>• Complete Grooming</Text>
               </View>
             </View>
 
