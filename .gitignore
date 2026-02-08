@@ -204,12 +204,16 @@ fastlane/test_output
 # Development/debug scripts
 *-test-*.js
 *-debug-*.js
+test-*.js
+debug-*.js
 check-*.js
 run-*.js
 setup-*.js
 clear-*.js
 verify-*.js
 backfill-*.js
+apply-*.js
+insert-*.js
 
 # Temporary SQL files (keep only migrations)
 *.sql
