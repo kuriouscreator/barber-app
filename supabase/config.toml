@@ -1,0 +1,5 @@
+# Supabase Configuration
+# https://supabase.com/docs/guides/cli/config
+
+[functions.stripe-webhook-public]
+verify_jwt = false  # Disable JWT verification for public webhook endpoint

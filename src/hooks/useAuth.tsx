@@ -3,6 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { redirectTo } from '../lib/linking';
+import { RewardsService } from '../services/RewardsService';
 
 WebBrowser.maybeCompleteAuthSession(); // important on iOS
 
@@ -11,7 +12,7 @@ type Ctx = {
   user: any;
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUpWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (email: string, password: string, fullName: string, phone?: string, referralCode?: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signInWithMagicLink: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -26,12 +27,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to auth changes + restore session
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
+    const timeoutId = setTimeout(() => {
+      console.log('Auth session check timed out, continuing without session');
       setLoading(false);
-    });
+    }, 5000); // 5 second timeout
+
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        clearTimeout(timeoutId);
+        setSession(data.session ?? null);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error('Error getting session:', error);
+        clearTimeout(timeoutId);
+        setSession(null);
+        setLoading(false);
+      });
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   // Handle deep-link auth (magic links / OAuth)
@@ -47,13 +65,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithPassword = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    console.log('🔐 Attempting sign in with password...', { email });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      console.error('❌ Sign in error:', {
+        message: error.message,
+        status: error.status,
+        name: error.name,
+      });
+      throw error;
+    }
+
+    console.log('✅ Sign in successful', { userId: data?.user?.id });
   };
 
-  const signUpWithPassword = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+  const signUpWithPassword = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone?: string,
+    referralCode?: string
+  ) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          phone: phone || null,
+        },
+        emailRedirectTo: redirectTo,
+      },
+    });
+
     if (error) throw error;
+
+    // Process referral code if provided
+    if (referralCode && data.user) {
+      try {
+        console.log('Processing referral code:', referralCode);
+        const success = await RewardsService.processReferral(referralCode, data.user.id);
+        if (success) {
+          console.log('✅ Referral processed successfully');
+        } else {
+          console.log('❌ Referral code was invalid or already used');
+        }
+      } catch (referralError) {
+        // Don't fail sign-up if referral processing fails
+        console.error('Error processing referral:', referralError);
+      }
+    }
+
+    // Return whether email confirmation is needed
+    // If session exists immediately, email confirmation is disabled
+    // If no session, user needs to confirm email
+    return {
+      needsEmailConfirmation: !data.session,
+    };
   };
 
   const signInWithMagicLink = async (email: string) => {
