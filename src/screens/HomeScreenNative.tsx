@@ -480,6 +480,7 @@ const HomeScreenNative: React.FC<Props> = ({ navigation }) => {
         <AppointmentDetailSheet
           ref={detailSheetRef}
           appointment={selectedAppointment}
+          userRole="customer"
           onReschedule={() => {
             detailSheetRef.current?.close();
             handleReschedule(selectedAppointment.id);

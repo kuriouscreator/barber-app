@@ -1,19 +1,27 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useBarberDashboardData } from '../hooks/useBarberDashboardData';
+import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
+import { Appointment, Service } from '../types';
+import { AppointmentService, CreateWalkInAppointmentData } from '../services/AppointmentService';
+import { ServiceService } from '../services/ServiceService';
 
 // Import dashboard components
 import TodaysScheduleCard from '../components/barberDashboard/TodaysScheduleCard';
-import QuickActionsGrid from '../components/barberDashboard/QuickActionsGrid';
 import QueueList from '../components/barberDashboard/QueueList';
 import TodaysProgress from '../components/barberDashboard/TodaysProgress';
 import NotificationsList from '../components/barberDashboard/NotificationsList';
 import SubscriptionInsightsCard from '../components/barberDashboard/SubscriptionInsightsCard';
 import QuickSettingsPanel from '../components/barberDashboard/QuickSettingsPanel';
+import { AppointmentDetailSheet } from '../components/AppointmentDetailSheet';
+import { WalkInFormBottomSheet } from '../components/WalkInFormBottomSheet';
 
 const BarberDashboardScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const { user } = useAuth();
   const {
     loading,
     error,
@@ -26,12 +34,40 @@ const BarberDashboardScreen: React.FC = () => {
     insights,
     quickSettings,
     updateQuickSetting,
+    refreshData,
   } = useBarberDashboardData();
+
+  // Bottom sheet state and refs
+  const detailsSheetRef = useRef<any>(null);
+  const walkInFormRef = useRef<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+
+  // Load barber services on mount
+  useEffect(() => {
+    const loadServices = async () => {
+      if (user?.id) {
+        try {
+          const barberServices = await ServiceService.getBarberServices(user.id);
+          setServices(barberServices);
+        } catch (error) {
+          console.error('Error loading services:', error);
+        }
+      }
+    };
+
+    loadServices();
+  }, [user?.id]);
+
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = (): string => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
 
   // Navigation handlers
   const handleViewAllSchedule = () => {
-    console.log('Navigate to full schedule');
-    // TODO: Navigate to schedule screen
+    navigation.navigate('Appointments');
   };
 
   const handleNotificationPress = (item: any) => {
@@ -64,14 +100,52 @@ const BarberDashboardScreen: React.FC = () => {
     // TODO: Start appointment early
   };
 
-  const handleEdit = (id: string) => {
-    console.log('Edit appointment:', id);
-    // TODO: Navigate to edit appointment screen
+  const handleDetails = async (id: string) => {
+    try {
+      const appointmentWithVenue = await AppointmentService.getAppointmentWithVenue(id);
+      if (appointmentWithVenue) {
+        setSelectedAppointment(appointmentWithVenue);
+        detailsSheetRef.current?.open();
+      }
+    } catch (error) {
+      console.error('Error loading appointment details:', error);
+      Alert.alert('Error', 'Failed to load appointment details');
+    }
   };
 
-  const handleDetails = (id: string) => {
-    console.log('View details:', id);
-    // TODO: Navigate to appointment details screen
+  const handleCloseDetailsSheet = () => {
+    detailsSheetRef.current?.close();
+    setSelectedAppointment(null);
+  };
+
+  // Walk-in handlers
+  const handleAddWalkIn = () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to add walk-ins');
+      return;
+    }
+
+    if (services.length === 0) {
+      Alert.alert('No Services', 'Please add services before creating walk-in appointments');
+      return;
+    }
+
+    walkInFormRef.current?.open();
+  };
+
+  const handleSaveWalkIn = async (walkInData: CreateWalkInAppointmentData) => {
+    try {
+      await AppointmentService.createWalkInAppointment(walkInData);
+      Alert.alert('Success', 'Walk-in appointment created successfully');
+
+      // Refresh dashboard data to show new walk-in
+      if (refreshData) {
+        await refreshData();
+      }
+    } catch (error: any) {
+      console.error('Error creating walk-in:', error);
+      throw error; // Let the form handle the error display
+    }
   };
 
   if (loading) {
@@ -92,13 +166,11 @@ const BarberDashboardScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Today's Schedule */}
-        <TodaysScheduleCard 
-          stats={stats} 
-          onViewAll={handleViewAllSchedule} 
+        <TodaysScheduleCard
+          stats={stats}
+          onViewAll={handleViewAllSchedule}
+          onAddWalkIn={handleAddWalkIn}
         />
-
-        {/* Quick Actions */}
-        <QuickActionsGrid actions={actions} />
 
         {/* Current Queue */}
         <QueueList
@@ -107,7 +179,6 @@ const BarberDashboardScreen: React.FC = () => {
           onComplete={handleComplete}
           onReschedule={handleReschedule}
           onStartEarly={handleStartEarly}
-          onEdit={handleEdit}
           onDetails={handleDetails}
         />
 
@@ -133,6 +204,25 @@ const BarberDashboardScreen: React.FC = () => {
           onToggle={updateQuickSetting}
         />
 			</ScrollView>
+
+      {/* Appointment Detail Bottom Sheet */}
+      <AppointmentDetailSheet
+        ref={detailsSheetRef}
+        appointment={selectedAppointment}
+        userRole="barber"
+        onClose={handleCloseDetailsSheet}
+      />
+
+      {/* Walk-In Form Bottom Sheet */}
+      {user?.id && (
+        <WalkInFormBottomSheet
+          ref={walkInFormRef}
+          barberId={user.id}
+          date={getTodayDate()}
+          services={services}
+          onSave={handleSaveWalkIn}
+        />
+      )}
 		</SafeAreaView>
   );
 };

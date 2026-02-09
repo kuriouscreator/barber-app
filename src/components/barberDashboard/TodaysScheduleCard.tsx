@@ -10,9 +10,10 @@ import { BarberStats } from '../../types';
 interface TodaysScheduleCardProps {
   stats: BarberStats;
   onViewAll: () => void;
+  onAddWalkIn?: () => void;
 }
 
-const TodaysScheduleCard: React.FC<TodaysScheduleCardProps> = ({ stats, onViewAll }) => {
+const TodaysScheduleCard: React.FC<TodaysScheduleCardProps> = ({ stats, onViewAll, onAddWalkIn }) => {
   return (
     <LinearGradient
       start={{ x: 0, y: 0 }}
@@ -41,11 +42,22 @@ const TodaysScheduleCard: React.FC<TodaysScheduleCardProps> = ({ stats, onViewAl
           <Text style={styles.nextText}>
             Next: {stats.nextAppt.timeLabel} - {stats.nextAppt.clientName}
           </Text>
-          <TouchableOpacity onPress={onViewAll} style={styles.viewAllButton}>
-            <Text style={styles.viewAllText}>View All</Text>
-          </TouchableOpacity>
         </View>
       )}
+
+      {/* Action Buttons */}
+      <View style={styles.actionRow}>
+        {onAddWalkIn && (
+          <TouchableOpacity onPress={onAddWalkIn} style={styles.addWalkInButton}>
+            <Ionicons name="person-add" size={18} color={colors.accent.primary} />
+            <Text style={styles.addWalkInText}>Add Walk-In</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={onViewAll} style={styles.viewAllButtonNew}>
+          <Text style={styles.viewAllTextNew}>View All</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.white} />
+        </TouchableOpacity>
+      </View>
     </LinearGradient>
   );
 };
@@ -88,14 +100,47 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   nextRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   nextText: {
     fontSize: typography.fontSize.base,
     color: colors.white,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  addWalkInButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.white,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  addWalkInText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.accent.primary,
+  },
+  viewAllButtonNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  viewAllTextNew: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
   },
   viewAllButton: {
     paddingHorizontal: spacing.sm,

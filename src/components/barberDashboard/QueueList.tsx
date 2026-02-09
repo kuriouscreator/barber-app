@@ -5,6 +5,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing, borderRadius, shadows } from '../../theme/spacing';
 import { QueueItem } from '../../types';
+import { AppointmentTypeBadge } from '../AppointmentTypeBadge';
 
 interface QueueListProps {
   items: QueueItem[];
@@ -12,7 +13,6 @@ interface QueueListProps {
   onComplete: (id: string) => void;
   onReschedule: (id: string) => void;
   onStartEarly: (id: string) => void;
-  onEdit: (id: string) => void;
   onDetails: (id: string) => void;
 }
 
@@ -22,7 +22,6 @@ const QueueList: React.FC<QueueListProps> = ({
   onComplete,
   onReschedule,
   onStartEarly,
-  onEdit,
   onDetails,
 }) => {
   const getStatusColor = (state: QueueItem['state']) => {
@@ -89,20 +88,12 @@ const QueueList: React.FC<QueueListProps> = ({
         );
       case 'SCHEDULED':
         return (
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.secondaryButton]}
-              onPress={() => onEdit(item.id)}
-            >
-              <Text style={styles.secondaryButtonText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.secondaryButton]}
-              onPress={() => onDetails(item.id)}
-            >
-              <Text style={styles.secondaryButtonText}>Details</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.viewDetailsButton}
+            onPress={() => onDetails(item.id)}
+          >
+            <Text style={styles.viewDetailsButtonText}>View Details</Text>
+          </TouchableOpacity>
         );
       default:
         return null;
@@ -120,7 +111,12 @@ const QueueList: React.FC<QueueListProps> = ({
           style={styles.avatar}
         />
         <View style={styles.clientDetails}>
-          <Text style={styles.clientName}>{item.clientName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.clientName}>{item.clientName}</Text>
+            {item.appointmentType && (
+              <AppointmentTypeBadge type={item.appointmentType} size="small" />
+            )}
+          </View>
           <Text style={styles.serviceName}>
             {item.serviceName}
             {item.subService && ` + ${item.subService}`}
@@ -231,11 +227,16 @@ const styles = StyleSheet.create({
   clientDetails: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   clientName: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    marginBottom: spacing.xs,
   },
   serviceName: {
     fontSize: typography.fontSize.sm,
@@ -313,6 +314,20 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: typography.fontSize.base,
     color: colors.text.secondary,
+  },
+  viewDetailsButton: {
+    backgroundColor: '#0F172A',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+  },
+  viewDetailsButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

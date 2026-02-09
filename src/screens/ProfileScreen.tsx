@@ -19,6 +19,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../hooks/useAuth';
 import { BillingService } from '../services/billing';
 import { CutTrackingService } from '../services/CutTrackingService';
+import { RewardsService } from '../services/RewardsService';
 import { uploadAvatar } from '../services/storage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
@@ -109,8 +110,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       console.log('👤 ProfileScreen: stripe_price_id:', userSubscription?.stripe_price_id);
 
       if (userSubscription) {
-        // Use the centralized cut tracking service for accurate data
-        const cutStatus = await CutTrackingService.getCutStatus();
+        // Use the centralized cut tracking service for accurate data and fetch real points
+        const [cutStatus, pointsBalance] = await Promise.all([
+          CutTrackingService.getCutStatus(),
+          RewardsService.getPointsBalance(user.id),
+        ]);
+
         const renewsOn = new Date(userSubscription.current_period_end).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -121,9 +126,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         const startDate = new Date(userSubscription.created_at || Date.now());
         const monthsActive = Math.max(1, Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)));
 
-        // Calculate points (mock: 50 points per completed cut)
         const completedCuts = cutStatus.usedCuts;
-        const points = completedCuts * 50;
 
         // Use the interval from the database, defaulting to 'month' if not set
         const interval = userSubscription.interval || 'month';
@@ -139,7 +142,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             price: priceDisplay,
             cutsRemaining: cutStatus.remainingCuts,
             totalCuts: completedCuts,
-            points,
+            points: pointsBalance,
             monthsActive,
             renewsOn,
           },
@@ -350,24 +353,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Main Content */}
         <View style={styles.mainContent}>
-          {/* Stats Cards Row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{profileData.subscription.totalCuts}</Text>
-              <Text style={styles.statLabel}>Total Cuts</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{profileData.subscription.points.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Points</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{profileData.subscription.monthsActive}</Text>
-              <Text style={styles.statLabel}>Months</Text>
-            </View>
-          </View>
-
           {/* Subscription Management Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Subscription Management</Text>

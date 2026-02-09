@@ -98,16 +98,37 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
   // Filter appointments from AppContext
   const upcomingAppointments = appointments.filter(apt => {
     const appointmentDate = apt.appointmentDate || apt.date;
-    return apt.status === 'scheduled' && 
-           appointmentDate && 
-           new Date(appointmentDate) >= new Date();
+    const appointmentTime = apt.appointmentTime || apt.time;
+
+    if (!appointmentDate || !appointmentTime || apt.status !== 'scheduled') {
+      return false;
+    }
+
+    // Combine date and time for proper comparison
+    const appointmentDateTime = new Date(`${appointmentDate}T${appointmentTime}`);
+    const now = new Date();
+
+    return appointmentDateTime >= now;
   });
-  
+
   const pastAppointments = appointments.filter(apt => {
+    // Completed or no-show are always considered past
+    if (apt.status === 'completed' || apt.status === 'no_show') {
+      return true;
+    }
+
     const appointmentDate = apt.appointmentDate || apt.date;
-    return apt.status === 'completed' || 
-           apt.status === 'no_show' ||
-           (apt.status === 'scheduled' && appointmentDate && new Date(appointmentDate) < new Date());
+    const appointmentTime = apt.appointmentTime || apt.time;
+
+    if (!appointmentDate || !appointmentTime || apt.status !== 'scheduled') {
+      return false;
+    }
+
+    // Combine date and time for proper comparison
+    const appointmentDateTime = new Date(`${appointmentDate}T${appointmentTime}`);
+    const now = new Date();
+
+    return appointmentDateTime < now;
   });
 
   const canceledAppointments = appointments.filter(apt => {
@@ -375,6 +396,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
       <AppointmentDetailSheet
         ref={bottomSheetRef}
         appointment={selectedAppointment}
+        userRole="customer"
         onClose={handleCloseSheet}
         onReschedule={handleReschedule}
         onCancel={handleCancel}
@@ -387,6 +409,7 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
       <AppointmentDetailSheet
         ref={detailsSheetRef}
         appointment={detailsAppointment}
+        userRole="customer"
         onClose={handleCloseDetailsSheet}
         onReschedule={(apt) => {
           handleCloseDetailsSheet();

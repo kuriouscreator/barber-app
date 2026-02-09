@@ -29,11 +29,6 @@ interface Props {
   route?: any;
 }
 
-interface TimeSlot {
-  time: string;
-  available: boolean;
-}
-
 const BookScreen: React.FC<Props> = ({ navigation, route }) => {
   const { state, bookAppointment, rescheduleAppointment } = useApp();
   const { services, user, userSubscription } = state;
@@ -51,27 +46,105 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
   // Generate dates for the week
   const [weekDates, setWeekDates] = useState<Date[]>([]);
 
-  // Time slots
-  const timeSlots: TimeSlot[] = [
-    { time: '9:00 AM', available: false },
-    { time: '10:00 AM', available: true },
-    { time: '11:00 AM', available: true },
-    { time: '12:00 PM', available: true },
-    { time: '1:00 PM', available: true },
-    { time: '2:00 PM', available: true },
-    { time: '2:30 PM', available: true },
-    { time: '3:30 PM', available: true },
-    { time: '4:00 PM', available: true },
-    { time: '5:00 PM', available: true },
-    { time: '6:00 PM', available: false },
-    { time: '7:00 PM', available: false },
-  ];
+  // Barber and availability state
+  const [barberId, setBarberId] = useState<string | null>(null);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Time format conversion utilities
+  const formatTo12Hour = (time24: string): string => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
+  const formatTo24Hour = (time12: string): string => {
+    const match = time12.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return time12;
+
+    let hours = parseInt(match[1]);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
+  // Get local date string without timezone conversion
+  const getLocalDateString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
     generateWeekDates();
     loadCutStatus();
     loadFavoriteService();
   }, [user?.id]);
+
+  // Fetch barber ID on mount
+  useEffect(() => {
+    const fetchBarber = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'barber')
+          .single();
+
+        if (error) {
+          console.error('Error fetching barber:', error);
+          return;
+        }
+
+        if (data) {
+          setBarberId(data.id);
+        }
+      } catch (error) {
+        console.error('Error fetching barber:', error);
+      }
+    };
+
+    fetchBarber();
+  }, []);
+
+  // Load available time slots when date or service changes
+  useEffect(() => {
+    const loadTimeSlots = async () => {
+      if (!barberId || !selectedDate || !selectedService) {
+        setAvailableTimeSlots([]);
+        return;
+      }
+
+      setLoadingSlots(true);
+      try {
+        const service = getSelectedService();
+        const dateStr = getLocalDateString(selectedDate);
+
+        const slots = await AvailabilityService.getAvailableTimeSlots(
+          barberId,
+          dateStr,
+          service?.duration || 30
+        );
+
+        // Convert from 24h to 12h format
+        const formatted = slots.map(slot => formatTo12Hour(slot));
+        setAvailableTimeSlots(formatted);
+      } catch (error) {
+        console.error('Error loading time slots:', error);
+        setAvailableTimeSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    loadTimeSlots();
+  }, [barberId, selectedDate, selectedService]);
 
   const generateWeekDates = (startDate?: Date) => {
     const dates: Date[] = [];
@@ -181,16 +254,19 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
         serviceName: service.name,
         serviceDuration: service.duration,
         servicePrice: service.price,
-        appointmentDate: selectedDate.toISOString().split('T')[0],
-        appointmentTime: selectedTime,
+        appointmentDate: getLocalDateString(selectedDate),
+        appointmentTime: formatTo24Hour(selectedTime),
         specialRequests: specialRequests || undefined,
-        barberId: '1', // Default barber
+        barberId: barberId || '1', // Use fetched barber ID or default to '1'
       };
 
       if (rescheduleData) {
         // Rescheduling an existing appointment
         console.log('Rescheduling appointment:', rescheduleData.id);
         await rescheduleAppointment(rescheduleData.id, appointmentData);
+
+        // Refresh remaining cuts (good practice, though rescheduling doesn't affect count)
+        await loadCutStatus();
 
         Alert.alert(
           'Appointment Rescheduled!',
@@ -205,6 +281,9 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
       } else {
         // Creating a new appointment
         await bookAppointment(appointmentData);
+
+        // Refresh remaining cuts to reflect the new booking
+        await loadCutStatus();
 
         Alert.alert(
           'Booking Confirmed!',
@@ -369,26 +448,31 @@ const BookScreen: React.FC<Props> = ({ navigation, route }) => {
 
             {/* Time Slots */}
             <View style={styles.timeSlotGrid}>
-              {timeSlots.map((slot, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.timeSlotButton,
-                    !slot.available && styles.timeSlotButtonDisabled,
-                    selectedTime === slot.time && styles.timeSlotButtonSelected
-                  ]}
-                  onPress={() => slot.available && setSelectedTime(slot.time)}
-                  disabled={!slot.available}
-                >
-                  <Text style={[
-                    styles.timeSlotText,
-                    !slot.available && styles.timeSlotTextDisabled,
-                    selectedTime === slot.time && styles.timeSlotTextSelected
-                  ]}>
-                    {slot.time}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {loadingSlots ? (
+                <Text style={styles.loadingText}>Loading available times...</Text>
+              ) : availableTimeSlots.length === 0 ? (
+                <Text style={styles.noSlotsText}>
+                  No available time slots for this date
+                </Text>
+              ) : (
+                availableTimeSlots.map((slot, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.timeSlotButton,
+                      selectedTime === slot && styles.timeSlotButtonSelected
+                    ]}
+                    onPress={() => setSelectedTime(slot)}
+                  >
+                    <Text style={[
+                      styles.timeSlotText,
+                      selectedTime === slot && styles.timeSlotTextSelected
+                    ]}>
+                      {slot}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           </View>
 
@@ -882,6 +966,18 @@ const styles = StyleSheet.create({
   },
   timeSlotTextDisabled: {
     color: '#9CA3AF',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.gray[600],
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  noSlotsText: {
+    fontSize: 14,
+    color: colors.gray[600],
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 
   // Textarea

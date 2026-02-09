@@ -136,7 +136,10 @@ export class AvailabilityService {
   ): Promise<string[]> {
     try {
       // Get barber's weekly availability
-      const dayOfWeek = new Date(date).getDay();
+      // Parse date string in local timezone to avoid timezone shifts
+      const [year, month, day] = date.split('-').map(Number);
+      const localDate = new Date(year, month - 1, day);
+      const dayOfWeek = localDate.getDay();
       const availability = await this.getBarberAvailability(barberId);
       const dayAvailability = availability.find(avail => avail.dayOfWeek === dayOfWeek);
 
@@ -160,12 +163,25 @@ export class AvailabilityService {
       const endTime = dayException?.endTime || dayAvailability.endTime;
 
       // Generate time slots
-      const availableSlots = this.generateTimeSlots(
+      let availableSlots = this.generateTimeSlots(
         startTime,
         endTime,
         serviceDuration,
         existingAppointments
       );
+
+      // Filter out past times if the selected date is today
+      const today = this.getLocalDateString(new Date());
+      if (date === today) {
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        availableSlots = availableSlots.filter(slot => {
+          const slotMinutes = this.timeToMinutes(slot);
+          // Add 5-minute buffer to prevent booking in the immediate past
+          return slotMinutes > currentMinutes + 5;
+        });
+      }
 
       return availableSlots;
     } catch (error) {
@@ -203,13 +219,14 @@ export class AvailabilityService {
 
     // Generate available slots
     let currentTime = startMinutes;
-    
-    while (currentTime + slotDuration <= endMinutes) {
+
+    // Allow booking at the end time (e.g., 10pm slot if barber works until 10pm)
+    while (currentTime <= endMinutes) {
       const slotEnd = currentTime + slotDuration;
       const slotTime = this.minutesToTime(currentTime);
-      
+
       // Check if this slot conflicts with any existing appointment
-      const isBlocked = blockedRanges.some(blocked => 
+      const isBlocked = blockedRanges.some(blocked =>
         (currentTime < blocked.end && slotEnd > blocked.start)
       );
 
@@ -239,6 +256,73 @@ export class AvailabilityService {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Get local date string in YYYY-MM-DD format without timezone conversion
+   */
+  private static getLocalDateString(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * Update or create barber's availability for a specific day
+   */
+  static async upsertBarberAvailability(
+    barberId: string,
+    dayOfWeek: number,
+    startTime: string,
+    endTime: string,
+    isAvailable: boolean
+  ): Promise<boolean> {
+    try {
+      // First, check if record exists for this barber and day
+      const { data: existing } = await supabase
+        .from('barber_availability')
+        .select('id')
+        .eq('barber_id', barberId)
+        .eq('day_of_week', dayOfWeek)
+        .maybeSingle();
+
+      if (existing) {
+        // Update existing record
+        const { error } = await supabase
+          .from('barber_availability')
+          .update({
+            start_time: startTime,
+            end_time: endTime,
+            is_available: isAvailable,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new record
+        const { error } = await supabase
+          .from('barber_availability')
+          .insert({
+            barber_id: barberId,
+            day_of_week: dayOfWeek,
+            start_time: startTime,
+            end_time: endTime,
+            is_available: isAvailable,
+          });
+
+        if (error) throw error;
+      }
+
+      // Clear cache to force refresh on next fetch
+      this.clearCache();
+
+      return true;
+    } catch (error) {
+      console.error('Error upserting barber availability:', error);
+      return false;
+    }
   }
 
 }

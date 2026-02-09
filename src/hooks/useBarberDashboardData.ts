@@ -9,20 +9,83 @@ import {
   SubscriptionInsights,
   QuickSettings,
 } from '../types';
+import { AppointmentService } from '../services/AppointmentService';
+import { useApp } from '../context/AppContext';
+
+// Helper function to format time from 24h to 12h
+const formatTime12Hour = (time24: string): string => {
+  const [hours, minutes] = time24.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
+
+// Helper to determine appointment state based on current time
+const getAppointmentState = (appointmentTime: string): QueueItem['state'] => {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const [hours, minutes] = appointmentTime.split(':').map(Number);
+  const appointmentMinutes = hours * 60 + minutes;
+
+  const diffMinutes = appointmentMinutes - currentMinutes;
+
+  // If appointment is in progress (within 30 min window around current time)
+  if (diffMinutes >= -15 && diffMinutes <= 15) {
+    return 'IN_PROGRESS';
+  }
+
+  // If appointment is next up (within next hour)
+  if (diffMinutes > 15 && diffMinutes <= 60) {
+    return 'NEXT_UP';
+  }
+
+  // Otherwise scheduled for later
+  return 'SCHEDULED';
+};
+
+// Transform appointment to QueueItem
+const transformToQueueItem = (appointment: any): QueueItem => {
+  const state = getAppointmentState(appointment.appointment_time);
+  const timeFormatted = formatTime12Hour(appointment.appointment_time);
+
+  // For walk-ins, use customer_name; for bookings, use customer.full_name
+  const clientName = appointment.appointment_type === 'walk_in'
+    ? appointment.customer_name || 'Walk-In Customer'
+    : appointment.customer?.full_name || 'Unknown Customer';
+
+  return {
+    id: appointment.id,
+    clientName,
+    avatarUrl: appointment.customer?.avatar_url,
+    serviceName: appointment.service_name,
+    state,
+    startTimeLabel: state === 'IN_PROGRESS' ? `Started ${timeFormatted}` : undefined,
+    nextTimeLabel: state !== 'IN_PROGRESS' ? timeFormatted : undefined,
+    estimateLabel: `Est. ${appointment.service_duration} min • $${appointment.service_price.toFixed(2)}`,
+    appointmentType: appointment.appointment_type || 'booking',
+  };
+};
 
 export const useBarberDashboardData = () => {
+  const { state: appState } = useApp();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [todaysAppointments, setTodaysAppointments] = useState<any[]>([]);
 
-  // Mock data - in a real app, this would come from API calls
-  const [stats] = useState<BarberStats>({
-    todayAppointments: 7,
-    todayCutsUsed: 12,
-    nextAppt: {
-      timeLabel: '10:30 AM',
-      clientName: 'John Smith',
-    },
-  });
+  // Calculate stats from real appointments
+  const stats: BarberStats = {
+    todayAppointments: todaysAppointments.length,
+    todayCutsUsed: todaysAppointments
+      .filter(apt => apt.status === 'completed')
+      .reduce((sum, apt) => sum + (apt.cuts_used || 0), 0),
+    nextAppt: todaysAppointments.length > 0
+      ? {
+          timeLabel: formatTime12Hour(todaysAppointments[0].appointment_time),
+          clientName: todaysAppointments[0].customer?.full_name || 'Unknown',
+        }
+      : undefined,
+  };
 
   const [actions] = useState<QuickAction[]>([
     {
@@ -51,41 +114,21 @@ export const useBarberDashboardData = () => {
     },
   ]);
 
-  const [queue] = useState<QueueItem[]>([
-    {
-      id: '1',
-      clientName: 'John Smith',
-      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-      serviceName: 'Classic Haircut',
-      subService: 'Beard Trim',
-      state: 'IN_PROGRESS',
-      startTimeLabel: 'Started 10:30 AM',
-      estimateLabel: 'Est. 45 min • $60',
-    },
-    {
-      id: '2',
-      clientName: 'Mike Johnson',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-      serviceName: 'Fade Cut',
-      state: 'NEXT_UP',
-      nextTimeLabel: '11:30 AM',
-      estimateLabel: 'Est. 30 min • $45',
-    },
-    {
-      id: '3',
-      clientName: 'David Wilson',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face',
-      serviceName: 'Full Service',
-      state: 'SCHEDULED',
-      nextTimeLabel: '12:30 PM',
-      estimateLabel: 'Est. 60 min • $85',
-    },
-  ]);
+  // Transform appointments to queue items, filtering out past appointments
+  const queue: QueueItem[] = todaysAppointments
+    .filter(apt => {
+      // Filter out past appointments by comparing full datetime
+      const appointmentDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
+      const now = new Date();
+      return appointmentDateTime >= now;
+    })
+    .map(transformToQueueItem);
 
-  const [dayProgress] = useState<DayProgress>({
-    completedCount: 3,
-    remainingCount: 4,
-  });
+  // Calculate day progress
+  const dayProgress: DayProgress = {
+    completedCount: todaysAppointments.filter(apt => apt.status === 'completed').length,
+    remainingCount: todaysAppointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed').length,
+  };
 
   const [monthlyProgress] = useState<MonthlyProgress>({
     percent: 48,
@@ -131,14 +174,34 @@ export const useBarberDashboardData = () => {
     visibleToNewClients: true,
   });
 
-  useEffect(() => {
-    // Simulate data loading
-    const timer = setTimeout(() => {
+  const fetchDashboardData = async () => {
+    // Only fetch if user is a barber
+    if (!appState.user || appState.user.role !== 'barber') {
       setLoading(false);
-    }, 1000);
+      return;
+    }
 
-    return () => clearTimeout(timer);
-  }, []);
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch today's appointments for this barber
+      const appointments = await AppointmentService.getBarberTodaysAppointments(appState.user.id);
+      console.log('📋 Dashboard: Appointments fetched:', appointments);
+      console.log('👤 Dashboard: First appointment customer:', appointments[0]?.customer);
+      console.log('👤 Dashboard: First appointment full data:', JSON.stringify(appointments[0], null, 2));
+      setTodaysAppointments(appointments);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [appState.user?.id]);
 
   const updateQuickSetting = (key: keyof QuickSettings, value: boolean) => {
     setQuickSettings(prev => ({
@@ -159,5 +222,6 @@ export const useBarberDashboardData = () => {
     insights,
     quickSettings,
     updateQuickSetting,
+    refreshData: fetchDashboardData,
   };
 };

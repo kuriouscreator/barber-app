@@ -170,6 +170,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [state, dispatch] = useReducer(appReducer, initialState);
   const { user: authUser, signOut } = useAuth();
   const lastSyncedUserIdRef = useRef<string | null>(null);
+  const isLoggingOutRef = useRef<boolean>(false);
 
   // Simple effect to sync user when authUser changes
   useEffect(() => {
@@ -228,14 +229,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     syncUserEffect();
-  }, [authUser?.id]);
-
-  // Handle subscription refresh
-  useEffect(() => {
-    if (state.user && !state.userSubscription) {
-      loadUserSubscription();
-    }
-  }, [state.user]);
+  }, [authUser?.id, loadUserSubscription]);
 
   // Set up Realtime subscription for user_subscriptions table
   useEffect(() => {
@@ -252,6 +246,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           filter: `user_id=eq.${state.user.id}`,
         },
         (payload) => {
+          // Guard: Don't process subscription changes during logout
+          if (isLoggingOutRef.current) {
+            console.log('⏭️  Skipping subscription change (logging out)');
+            return;
+          }
+
           console.log('🔔 Subscription change detected:', payload);
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             // Refresh subscription data when webhook updates the database
@@ -269,8 +269,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [state.user?.id]);
+  }, [state.user?.id, loadUserSubscription]);
 
+  // Set up Realtime subscription for appointments table to sync remaining cuts
+  useEffect(() => {
+    if (!state.user) return;
+
+    const channel = supabase
+      .channel('user_appointments_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'appointments',
+          filter: `user_id=eq.${state.user.id}`,
+        },
+        (payload) => {
+          // Guard: Don't process appointment changes during logout
+          if (isLoggingOutRef.current) {
+            console.log('⏭️  Skipping appointment change (logging out)');
+            return;
+          }
+
+          console.log('🔔 Appointment change detected:', payload);
+          // When appointments change, refresh subscription to recalculate remaining cuts
+          console.log('🔄 Refreshing subscription to update remaining cuts');
+          loadUserSubscription();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [state.user?.id, loadUserSubscription]);
 
   const login = (user: User) => {
     // This is now handled by Supabase auth, but keeping for compatibility
@@ -279,17 +312,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const logout = async () => {
     try {
-      // Clear local state immediately
-      dispatch({ type: 'SET_USER', payload: null });
-      dispatch({ type: 'SET_APPOINTMENTS', payload: [] });
-      dispatch({ type: 'SET_USER_SUBSCRIPTION', payload: null });
-      lastSyncedUserIdRef.current = null;
-      
-      // Then sign out from Supabase
+      // Set logout flag to prevent race conditions
+      isLoggingOutRef.current = true;
+
+      // Sign out from Supabase - the auth sync effect will handle state clearing
       await signOut();
+
+      // Reset flag after logout completes
+      isLoggingOutRef.current = false;
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if signOut fails, we've already cleared local state
+      isLoggingOutRef.current = false;
     }
   };
 
@@ -433,13 +466,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return null;
   };
 
-  const loadUserSubscription = async () => {
+  const loadUserSubscription = useCallback(async () => {
+    // Guard: Don't load subscription if logging out or no user
+    if (isLoggingOutRef.current || !authUser) {
+      console.log('⏭️  Skipping subscription load (logging out or no user)');
+      return;
+    }
+
     try {
       console.log('🔄 Loading user subscription...');
-      console.log('👤 Current user in context:', state.user?.id, state.user?.email);
       const subscription = await BillingService.getSubscription();
       console.log('📊 Subscription loaded:', subscription);
-      
+
       if (subscription) {
         console.log('📋 Plan details:', {
           planName: subscription.plan_name,
@@ -450,12 +488,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           scheduledDate: subscription.scheduled_effective_date
         });
       }
-      
+
       dispatch({ type: 'SET_USER_SUBSCRIPTION', payload: subscription });
     } catch (error) {
       console.error('❌ Error loading user subscription:', error);
     }
-  };
+  }, [authUser]);
 
   const refreshSubscription = async () => {
     await loadUserSubscription();
