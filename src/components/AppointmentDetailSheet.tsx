@@ -7,22 +7,26 @@ import { format, parse } from 'date-fns';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { componentTokens } from '../theme/components';
-import { Appointment } from '../types';
+import { Appointment, UserRole } from '../types';
 import { ActionListItem } from './native/ActionListItem';
 import { triggerHaptic } from '../utils/haptics';
+import { AppointmentTypeBadge } from './AppointmentTypeBadge';
+import { AppointmentService } from '../services/AppointmentService';
 
 interface AppointmentDetailSheetProps {
   appointment: Appointment | null;
+  userRole?: UserRole;
   onClose: () => void;
   onReschedule?: (appointment: Appointment) => void;
   onCancel?: (appointment: Appointment) => void;
   onReview?: (appointment: Appointment) => void;
   onRebook?: (appointment: Appointment) => void;
   onViewBarberProfile?: (appointment: Appointment) => void;
+  onStatusUpdated?: () => void; // Callback when status is updated by barber
 }
 
 export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProps>(
-  ({ appointment, onClose, onReschedule, onCancel, onReview, onRebook, onViewBarberProfile }, ref) => {
+  ({ appointment, userRole, onClose, onReschedule, onCancel, onReview, onRebook, onViewBarberProfile, onStatusUpdated }, ref) => {
     const rbSheetRef = useRef<any>(null);
 
     // Expose open and close methods to parent
@@ -35,6 +39,10 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
     }));
 
     if (!appointment) return null;
+
+    // Determine viewing context
+    const isBarberView = userRole === 'barber';
+    const isWalkIn = appointment.appointmentType === 'walk_in';
 
     const formatAppointmentDate = (date: string): string => {
       const parsedDate = parse(date, 'yyyy-MM-dd', new Date());
@@ -257,6 +265,100 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
       }
     };
 
+    // Barber-specific status update handlers
+    const handleMarkComplete = async () => {
+      triggerHaptic('medium');
+      Alert.alert(
+        'Mark as Completed',
+        'Mark this appointment as completed?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Complete',
+            onPress: async () => {
+              try {
+                await AppointmentService.updateAppointmentStatus(appointment.id, 'completed');
+                triggerHaptic('success');
+                Alert.alert('Success', 'Appointment marked as completed');
+                onClose();
+                if (onStatusUpdated) {
+                  setTimeout(() => onStatusUpdated(), 300);
+                }
+              } catch (error: any) {
+                console.error('Error updating appointment status:', error);
+                Alert.alert('Error', error.message || 'Failed to update appointment');
+              }
+            },
+          },
+        ]
+      );
+    };
+
+    const handleMarkNoShow = async () => {
+      triggerHaptic('medium');
+      Alert.alert(
+        'Mark as No-show',
+        'Mark this customer as a no-show? This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await AppointmentService.updateAppointmentStatus(appointment.id, 'no_show');
+                triggerHaptic('success');
+                Alert.alert('Updated', 'Appointment marked as no-show');
+                onClose();
+                if (onStatusUpdated) {
+                  setTimeout(() => onStatusUpdated(), 300);
+                }
+              } catch (error: any) {
+                console.error('Error updating appointment status:', error);
+                Alert.alert('Error', error.message || 'Failed to update appointment');
+              }
+            },
+          },
+        ]
+      );
+    };
+
+    const handleCancelAppointment = async () => {
+      triggerHaptic('medium');
+      Alert.alert(
+        'Cancel Appointment',
+        'Are you sure you want to cancel this appointment?',
+        [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Yes, Cancel',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                if (onCancel) {
+                  // Use existing cancel handler if provided
+                  onClose();
+                  setTimeout(() => onCancel(appointment), 300);
+                } else if (isBarberView) {
+                  // Barber direct cancel
+                  await AppointmentService.updateAppointmentStatus(appointment.id, 'cancelled');
+                  triggerHaptic('success');
+                  Alert.alert('Cancelled', 'Appointment has been cancelled');
+                  onClose();
+                  if (onStatusUpdated) {
+                    setTimeout(() => onStatusUpdated(), 300);
+                  }
+                }
+              } catch (error: any) {
+                console.error('Error cancelling appointment:', error);
+                Alert.alert('Error', error.message || 'Failed to cancel appointment');
+              }
+            },
+          },
+        ]
+      );
+    };
+
     const formatPaymentMethod = (method?: string): string => {
       if (!method) return 'Not specified';
       if (method.startsWith('card_')) return `Card •••• ${method.slice(-4)}`;
@@ -295,6 +397,11 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
           <View style={styles.mainContent}>
             {/* Date and Time */}
             <View style={[styles.dateTimeContainer, { paddingTop: 32 }]}>
+              {appointment.appointmentType && (
+                <View style={styles.badgeContainer}>
+                  <AppointmentTypeBadge type={appointment.appointmentType} size="medium" />
+                </View>
+              )}
               <Text style={styles.dateText}>{formatAppointmentDate(appointment.appointmentDate)}</Text>
               <Text style={styles.timeText}>at {formatAppointmentTime(appointment.appointmentTime)}</Text>
               <View style={styles.durationRow}>
@@ -305,26 +412,30 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
 
             {/* Action Items */}
             <View style={styles.actionItems}>
-              <ActionListItem
-                icon="calendar-outline"
-                iconColor={colors.gray[700]}
-                iconBackgroundColor={colors.gray[100]}
-                title="Add to calendar"
-                subtitle="Set yourself a reminder"
-                onPress={handleAddToCalendar}
-              />
-              <ActionListItem
-                icon="navigate-outline"
-                iconColor={colors.gray[700]}
-                iconBackgroundColor={colors.gray[100]}
-                title="Getting there"
-                subtitle={
-                  appointment.venue
-                    ? `${appointment.venue.address}, ${appointment.venue.city}, ${appointment.venue.state}`
-                    : appointment.location || 'Location not available'
-                }
-                onPress={handleGetDirections}
-              />
+              {!isBarberView && (
+                <>
+                  <ActionListItem
+                    icon="calendar-outline"
+                    iconColor={colors.gray[700]}
+                    iconBackgroundColor={colors.gray[100]}
+                    title="Add to calendar"
+                    subtitle="Set yourself a reminder"
+                    onPress={handleAddToCalendar}
+                  />
+                  <ActionListItem
+                    icon="navigate-outline"
+                    iconColor={colors.gray[700]}
+                    iconBackgroundColor={colors.gray[100]}
+                    title="Getting there"
+                    subtitle={
+                      appointment.venue
+                        ? `${appointment.venue.address}, ${appointment.venue.city}, ${appointment.venue.state}`
+                        : appointment.location || 'Location not available'
+                    }
+                    onPress={handleGetDirections}
+                  />
+                </>
+              )}
               <ActionListItem
                 icon="calendar"
                 iconColor={colors.orange[600]}
@@ -366,52 +477,100 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
                     </Text>
                   </View>
                   <View style={styles.priceContainer}>
-                    <Text style={styles.cutsUsed}>1 cut</Text>
+                    {isWalkIn ? (
+                      <Text style={styles.cutsUsed}>${appointment.servicePrice?.toFixed(2) || '0.00'}</Text>
+                    ) : (
+                      <Text style={styles.cutsUsed}>1 cut</Text>
+                    )}
                   </View>
                 </View>
 
-                <View style={styles.subscriptionInfoContainer}>
-                  <View style={styles.subscriptionRow}>
-                    <View style={styles.subscriptionIconContainer}>
-                      <Ionicons name="cut-outline" size={16} color={colors.gray[700]} />
+                {isWalkIn ? (
+                  /* Walk-in appointment info */
+                  <View style={styles.subscriptionInfoContainer}>
+                    <View style={styles.subscriptionRow}>
+                      <View style={styles.subscriptionIconContainer}>
+                        <Ionicons name="person-outline" size={16} color={colors.gray[700]} />
+                      </View>
+                      <View style={styles.subscriptionTextContainer}>
+                        <Text style={styles.subscriptionLabel}>Walk-in Customer</Text>
+                        <Text style={styles.subscriptionValue}>
+                          {appointment.customerName || 'Walk-in Customer'}
+                          {appointment.customerPhone && ` • ${appointment.customerPhone}`}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.subscriptionTextContainer}>
-                      <Text style={styles.subscriptionLabel}>Deducted from plan</Text>
-                      <Text style={styles.subscriptionValue}>1 cut used from subscription</Text>
+                    <View style={[styles.subscriptionRow, { marginTop: 12 }]}>
+                      <View style={styles.subscriptionIconContainer}>
+                        <Ionicons name="cash-outline" size={16} color={colors.gray[700]} />
+                      </View>
+                      <View style={styles.subscriptionTextContainer}>
+                        <Text style={styles.subscriptionLabel}>Payment</Text>
+                        <Text style={styles.subscriptionValue}>Cash payment • Not from subscription</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                ) : (
+                  /* Regular booking subscription info */
+                  <View style={styles.subscriptionInfoContainer}>
+                    <View style={styles.subscriptionRow}>
+                      <View style={styles.subscriptionIconContainer}>
+                        <Ionicons name="cut-outline" size={16} color={colors.gray[700]} />
+                      </View>
+                      <View style={styles.subscriptionTextContainer}>
+                        <Text style={styles.subscriptionLabel}>Deducted from plan</Text>
+                        <Text style={styles.subscriptionValue}>1 cut used from subscription</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
 
-            {/* Cancel Button for Upcoming Appointments */}
+            {/* Action Buttons */}
             {appointment.status === 'scheduled' && (
-              <View style={styles.cancelButtonContainer}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    triggerHaptic('medium');
-                    Alert.alert(
-                      'Cancel Appointment',
-                      'Are you sure you want to cancel this appointment?',
-                      [
-                        { text: 'No', style: 'cancel' },
-                        {
-                          text: 'Yes, Cancel',
-                          style: 'destructive',
-                          onPress: () => {
-                            onClose();
-                            setTimeout(() => onCancel?.(appointment), 300);
-                          },
-                        },
-                      ]
-                    );
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close-circle-outline" size={20} color={colors.red[600]} />
-                  <Text style={styles.cancelButtonText}>Cancel Appointment</Text>
-                </TouchableOpacity>
+              <View style={styles.actionButtonsContainer}>
+                {isBarberView ? (
+                  /* Barber-specific actions */
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.completeButton]}
+                      onPress={handleMarkComplete}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+                      <Text style={styles.actionButtonText}>Mark Complete</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.noShowButton]}
+                      onPress={handleMarkNoShow}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="alert-circle-outline" size={20} color={colors.orange[600]} />
+                      <Text style={[styles.actionButtonText, { color: colors.orange[600] }]}>Mark No-show</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.cancelButtonBarber]}
+                      onPress={handleCancelAppointment}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close-circle-outline" size={20} color={colors.red[600]} />
+                      <Text style={[styles.actionButtonText, { color: colors.red[600] }]}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  /* Customer cancel button */
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={handleCancelAppointment}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close-circle-outline" size={20} color={colors.red[600]} />
+                    <Text style={styles.cancelButtonText}>Cancel Appointment</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -469,6 +628,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
     gap: 8,
+  },
+  badgeContainer: {
+    marginBottom: 12,
   },
   dateText: {
     fontSize: 30,
@@ -596,6 +758,39 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: colors.gray[500],
     lineHeight: 18,
+  },
+  actionButtonsContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    gap: 12,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  completeButton: {
+    backgroundColor: colors.accent.success,
+  },
+  noShowButton: {
+    backgroundColor: colors.orange[50],
+    borderWidth: 1,
+    borderColor: colors.orange[600],
+  },
+  cancelButtonBarber: {
+    backgroundColor: colors.red[50],
+    borderWidth: 1,
+    borderColor: colors.red[200],
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+    lineHeight: 24,
   },
   cancelButtonContainer: {
     paddingHorizontal: 24,

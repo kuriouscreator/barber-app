@@ -24,7 +24,30 @@ export interface UpdateAppointmentData {
   specialRequests?: string;
 }
 
+export interface CreateWalkInAppointmentData {
+  customerName: string; // Required for walk-ins
+  customerPhone?: string; // Optional phone number
+  serviceId: string;
+  serviceName: string;
+  serviceDuration: number;
+  servicePrice: number;
+  appointmentDate: string; // YYYY-MM-DD format
+  appointmentTime: string; // HH:MM format
+  specialRequests?: string;
+  barberId: string;
+}
+
 export class AppointmentService {
+  /**
+   * Get local date string in YYYY-MM-DD format without timezone conversion
+   */
+  private static getLocalDateString(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   /**
    * Get all appointments for the current user
    */
@@ -170,6 +193,92 @@ export class AppointmentService {
       return this.mapToAppointment(data);
     } catch (error) {
       console.error('Error creating appointment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a walk-in appointment (barber-side only)
+   * Walk-ins don't require a user account and don't affect subscription cuts
+   */
+  static async createWalkInAppointment(
+    walkInData: CreateWalkInAppointmentData
+  ): Promise<Appointment> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Verify the authenticated user is a barber
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Error fetching user profile:', profileError);
+        throw new Error('Failed to verify user role');
+      }
+
+      if (profile.role !== 'barber') {
+        throw new Error('Only barbers can create walk-in appointments');
+      }
+
+      // Verify the service exists
+      const { data: serviceData, error: serviceError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('id', walkInData.serviceId)
+        .eq('is_active', true)
+        .single();
+
+      if (serviceError || !serviceData) {
+        console.error('Error fetching service:', serviceError);
+        throw new Error('Service not found or inactive');
+      }
+
+      console.log('Creating walk-in appointment:', {
+        customerName: walkInData.customerName,
+        service: walkInData.serviceName,
+        date: walkInData.appointmentDate,
+        time: walkInData.appointmentTime
+      });
+
+      // Create the walk-in appointment
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert({
+          barber_id: walkInData.barberId,
+          user_id: null, // Walk-ins don't have user accounts
+          appointment_type: 'walk_in',
+          customer_name: walkInData.customerName,
+          customer_phone: walkInData.customerPhone || null,
+          service_id: walkInData.serviceId,
+          service_name: walkInData.serviceName,
+          service_duration: walkInData.serviceDuration,
+          service_price: walkInData.servicePrice,
+          appointment_date: walkInData.appointmentDate,
+          appointment_time: walkInData.appointmentTime,
+          special_requests: walkInData.specialRequests || null,
+          location: '123 Main St, San Francisco, CA',
+          payment_method: 'Cash',
+          credits_used: 0, // Walk-ins don't use subscription credits
+          cuts_used: 0, // Walk-ins don't count against subscription cuts
+          status: 'scheduled'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating walk-in appointment:', error);
+        throw error;
+      }
+
+      console.log('Walk-in appointment created successfully:', data.id);
+
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error creating walk-in appointment:', error);
       throw error;
     }
   }
@@ -420,8 +529,8 @@ export class AppointmentService {
    */
   static async getUpcomingAppointments(): Promise<Appointment[]> {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
+      const today = this.getLocalDateString(new Date());
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
@@ -448,8 +557,8 @@ export class AppointmentService {
    */
   static async getPastAppointments(): Promise<Appointment[]> {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
+      const today = this.getLocalDateString(new Date());
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
@@ -622,11 +731,12 @@ export class AppointmentService {
       if (!user) throw new Error('User not authenticated');
 
       // Get appointment data
+      // Use OR condition to allow both customers (user_id) and barbers (barber_id) to view
       const { data: appointment, error: appointmentError } = await supabase
         .from('appointments')
         .select('*')
         .eq('id', appointmentId)
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},barber_id.eq.${user.id}`)
         .single();
 
       if (appointmentError || !appointment) {
@@ -677,6 +787,288 @@ export class AppointmentService {
   /**
    * Map database record to Appointment type
    */
+  /**
+   * Get today's appointments for a specific barber
+   */
+  static async getBarberTodaysAppointments(barberId: string): Promise<any[]> {
+    try {
+      const today = this.getLocalDateString(new Date());
+
+      // Fetch appointments
+      const { data: appointments, error: appointmentsError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('barber_id', barberId)
+        .eq('appointment_date', today)
+        .in('status', ['scheduled', 'confirmed'])
+        .order('appointment_time', { ascending: true });
+
+      if (appointmentsError) throw appointmentsError;
+      if (!appointments || appointments.length === 0) return [];
+
+      console.log('🔍 AppointmentService: Raw appointments:', appointments.length);
+      console.log('🔍 AppointmentService: First appointment user_id:', appointments[0]?.user_id);
+
+      // Extract unique user IDs, filtering out null values (walk-ins don't have user_id)
+      const userIds = [...new Set(appointments.map(apt => apt.user_id).filter(id => id !== null))];
+      console.log('🔍 AppointmentService: User IDs to fetch:', userIds);
+
+      // Fetch customer profiles only if there are user IDs to fetch
+      let profiles: any[] = [];
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, email')
+          .in('id', userIds);
+
+        if (profilesError) throw profilesError;
+        profiles = profilesData || [];
+      }
+
+      console.log('🔍 AppointmentService: Profiles fetched:', profiles?.length);
+      console.log('🔍 AppointmentService: Profiles data:', profiles);
+
+      // Create a map of profiles for quick lookup
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      console.log('🔍 AppointmentService: ProfileMap size:', profileMap.size);
+
+      // Merge appointments with customer data
+      const merged = appointments.map(apt => ({
+        ...apt,
+        customer: profileMap.get(apt.user_id) || null,
+      }));
+
+      console.log('🔍 AppointmentService: First merged appointment customer:', merged[0]?.customer);
+      return merged;
+    } catch (error) {
+      console.error('Error fetching barber today appointments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get the next upcoming appointment for a barber
+   */
+  static async getBarberNextAppointment(barberId: string): Promise<any | null> {
+    try {
+      const now = new Date();
+      const today = this.getLocalDateString(now);
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+      const { data: appointment, error: appointmentError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('barber_id', barberId)
+        .eq('status', 'scheduled')
+        .or(`appointment_date.gt.${today},and(appointment_date.eq.${today},appointment_time.gte.${currentTime})`)
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true })
+        .limit(1)
+        .single();
+
+      if (appointmentError && appointmentError.code !== 'PGRST116') throw appointmentError;
+      if (!appointment) return null;
+
+      // Fetch customer profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, email')
+        .eq('id', appointment.user_id)
+        .single();
+
+      if (profileError) console.error('Error fetching customer profile:', profileError);
+
+      return {
+        ...appointment,
+        customer: profile || null,
+      };
+    } catch (error) {
+      console.error('Error fetching barber next appointment:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get appointments for a barber within a date range
+   */
+  static async getBarberAppointmentsByDateRange(
+    barberId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<any[]> {
+    try {
+      // Fetch appointments
+      const { data: appointments, error: appointmentsError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('barber_id', barberId)
+        .gte('appointment_date', startDate)
+        .lte('appointment_date', endDate)
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
+
+      if (appointmentsError) throw appointmentsError;
+      if (!appointments || appointments.length === 0) return [];
+
+      // Extract unique user IDs
+      const userIds = [...new Set(appointments.map(apt => apt.user_id))];
+
+      // Fetch customer profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, email')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Create a map of profiles for quick lookup
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      // Merge appointments with customer data
+      return appointments.map(apt => ({
+        ...apt,
+        customer: profileMap.get(apt.user_id) || null,
+      }));
+    } catch (error) {
+      console.error('Error fetching barber appointments by date range:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get barber appointments with flexible filtering for appointments screen
+   */
+  static async getBarberAppointments(
+    barberId: string,
+    filter: 'today' | 'upcoming' | 'past',
+    dateRange?: { start: string; end: string }
+  ): Promise<any[]> {
+    try {
+      const today = this.getLocalDateString(new Date());
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+      let query = supabase
+        .from('appointments')
+        .select('*')
+        .eq('barber_id', barberId);
+
+      // Apply filter logic
+      if (filter === 'today') {
+        query = query
+          .eq('appointment_date', today)
+          .eq('status', 'scheduled');
+      } else if (filter === 'upcoming') {
+        // Get upcoming appointments (future dates OR today but later time)
+        if (dateRange) {
+          query = query
+            .gte('appointment_date', dateRange.start)
+            .lte('appointment_date', dateRange.end);
+        } else {
+          query = query.gte('appointment_date', today);
+        }
+        query = query.eq('status', 'scheduled');
+      } else if (filter === 'past') {
+        // Get past appointments (past dates OR completed/cancelled/no-show)
+        if (dateRange) {
+          query = query
+            .gte('appointment_date', dateRange.start)
+            .lte('appointment_date', dateRange.end);
+        } else {
+          // Default to last 90 days
+          const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+          const startDate = this.getLocalDateString(ninetyDaysAgo);
+          query = query.gte('appointment_date', startDate);
+        }
+        // Include past scheduled appointments or any completed/cancelled/no-show
+        query = query.or(`appointment_date.lt.${today},status.in.(completed,cancelled,no_show)`);
+      }
+
+      // Sort order
+      if (filter === 'past') {
+        query = query
+          .order('appointment_date', { ascending: false })
+          .order('appointment_time', { ascending: false });
+      } else {
+        query = query
+          .order('appointment_date', { ascending: true })
+          .order('appointment_time', { ascending: true });
+      }
+
+      const { data: appointments, error: appointmentsError } = await query;
+
+      if (appointmentsError) throw appointmentsError;
+      if (!appointments || appointments.length === 0) return [];
+
+      console.log(`🔍 AppointmentService: Fetched ${appointments.length} ${filter} appointments`);
+
+      // Extract unique user IDs, filtering out nulls (walk-ins)
+      const userIds = [...new Set(appointments.map(apt => apt.user_id).filter(id => id !== null))];
+
+      // Fetch customer profiles only if there are user IDs
+      let profiles: any[] = [];
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, email')
+          .in('id', userIds);
+
+        if (profilesError) throw profilesError;
+        profiles = profilesData || [];
+      }
+
+      // Create a map of profiles for quick lookup
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      // Merge appointments with customer data
+      const merged = appointments.map(apt => ({
+        ...apt,
+        customer: profileMap.get(apt.user_id) || null,
+      }));
+
+      return merged;
+    } catch (error) {
+      console.error(`Error fetching barber ${filter} appointments:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Update appointment status (barber action)
+   */
+  static async updateAppointmentStatus(
+    appointmentId: string,
+    status: 'completed' | 'cancelled' | 'no_show'
+  ): Promise<Appointment> {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId)
+        .eq('barber_id', session.session.user.id) // Ensure barber owns appointment
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Appointment not found or unauthorized');
+
+      console.log(`✅ Appointment ${appointmentId} status updated to: ${status}`);
+      return this.mapToAppointment(data);
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      throw error;
+    }
+  }
+
   private static mapToAppointment(dbRecord: any): Appointment {
     return {
       id: dbRecord.id,
@@ -695,6 +1087,9 @@ export class AppointmentService {
       reviewText: dbRecord.review_text,
       reviewPhotoUrl: dbRecord.review_photo_url,
       barberId: dbRecord.barber_id,
+      appointmentType: dbRecord.appointment_type || 'booking',
+      customerName: dbRecord.customer_name,
+      customerPhone: dbRecord.customer_phone,
       createdAt: dbRecord.created_at,
       updatedAt: dbRecord.updated_at
     };

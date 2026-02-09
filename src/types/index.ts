@@ -58,6 +58,10 @@ export interface Appointment {
   venue?: VenueDetails;
   createdAt?: string;
   updatedAt?: string;
+  // Walk-in appointment fields
+  appointmentType?: 'booking' | 'walk_in';
+  customerName?: string; // For walk-ins without user accounts
+  customerPhone?: string; // Optional phone for walk-ins
   // Legacy fields for backward compatibility
   userId?: string;
   date?: string;
@@ -140,6 +144,8 @@ export type MainTabParamList = {
   Home: undefined;
   Book: { rescheduleAppointment?: RescheduleAppointment; rebookAppointment?: RescheduleAppointment } | undefined;
   Appointments: { appointmentId?: string } | undefined;
+  BarberAppointments: undefined;
+  Schedule: undefined;
   Rewards: undefined;
   Profile: undefined;
   Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
@@ -187,6 +193,7 @@ export interface QueueItem {
   startTimeLabel?: string;         // e.g., "Started 10:30 AM"
   nextTimeLabel?: string;          // e.g., "11:30 AM"
   estimateLabel: string;           // e.g., "Est. 45 min • $60"
+  appointmentType?: 'booking' | 'walk_in'; // Type of appointment
 }
 
 export interface DayProgress {
@@ -254,4 +261,12 @@ export interface WeekStats {
   availableSlots: { value: number; caption: string; icon: string };
   booked: { value: number; caption: string; icon: string };
   utilizationPct: number;
+}
+
+// Barber Appointments Screen Filters
+export interface AppointmentFilters {
+  dateRange?: 'today' | 'week' | 'all' | 'last7' | 'last30' | 'last90';
+  appointmentType?: 'all' | 'booking' | 'walk_in';
+  status?: 'all' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  searchQuery?: string;
 }

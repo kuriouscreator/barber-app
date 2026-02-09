@@ -23,6 +23,7 @@ import AdminScreen from '../screens/AdminScreen';
 import BarberProfileScreen from '../screens/BarberProfileScreen';
 import BarberDashboardScreen from '../screens/BarberDashboardScreen';
 import BarberWeeklyScheduleScreen from '../screens/BarberWeeklyScheduleScreen';
+import BarberAppointmentsScreen from '../screens/BarberAppointmentsScreen';
 import AppointmentDetailsScreen from '../screens/AppointmentDetailsScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 
@@ -185,9 +186,34 @@ const MainTabNavigator = () => {
       )}
       {isBarber && (
         <Tab.Screen
-          name="Appointments"
+          name="BarberAppointments"
+          component={BarberAppointmentsScreen}
+          options={{
+            title: 'Appointments',
+            tabBarIcon: ({ focused }) => (
+              <Ionicons
+                name={focused ? 'list' : 'list-outline'}
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+              />
+            ),
+          }}
+        />
+      )}
+      {isBarber && (
+        <Tab.Screen
+          name="Schedule"
           component={BarberWeeklyScheduleScreen}
-          options={{ title: 'Schedule' }}
+          options={{
+            title: 'Schedule',
+            tabBarIcon: ({ focused }) => (
+              <Ionicons
+                name={focused ? 'calendar' : 'calendar-outline'}
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+              />
+            ),
+          }}
         />
       )}
       {!isBarber && (
