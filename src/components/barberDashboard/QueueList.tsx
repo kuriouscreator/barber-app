@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList, Image } from 'react
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-import { spacing, borderRadius, shadows } from '../../theme/spacing';
+import { spacing } from '../../theme/spacing';
+import { cleanScheduler } from '../../theme/cleanScheduler';
 import { QueueItem } from '../../types';
 import { AppointmentTypeBadge } from '../AppointmentTypeBadge';
 
@@ -27,13 +28,13 @@ const QueueList: React.FC<QueueListProps> = ({
   const getStatusColor = (state: QueueItem['state']) => {
     switch (state) {
       case 'IN_PROGRESS':
-        return colors.accent.success;
+        return cleanScheduler.status.available;
       case 'NEXT_UP':
-        return colors.accent.warning;
+        return cleanScheduler.status.warning;
       case 'SCHEDULED':
-        return colors.text.secondary;
+        return cleanScheduler.text.body;
       default:
-        return colors.text.secondary;
+        return cleanScheduler.text.body;
     }
   };
 
@@ -56,16 +57,18 @@ const QueueList: React.FC<QueueListProps> = ({
         return (
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.pauseButton]}
+              style={[styles.actionButton, styles.secondaryButton]}
               onPress={() => onPause(item.id)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.pauseButtonText}>Pause</Text>
+              <Text style={styles.secondaryButtonText}>Pause</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, styles.completeButton]}
+              style={[styles.actionButton, styles.primaryButton]}
               onPress={() => onComplete(item.id)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.completeButtonText}>Complete</Text>
+              <Text style={styles.primaryButtonText}>Complete</Text>
             </TouchableOpacity>
           </View>
         );
@@ -75,12 +78,14 @@ const QueueList: React.FC<QueueListProps> = ({
             <TouchableOpacity
               style={[styles.actionButton, styles.secondaryButton]}
               onPress={() => onReschedule(item.id)}
+              activeOpacity={0.7}
             >
               <Text style={styles.secondaryButtonText}>Reschedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.primaryButton]}
               onPress={() => onStartEarly(item.id)}
+              activeOpacity={0.7}
             >
               <Text style={styles.primaryButtonText}>Start Early</Text>
             </TouchableOpacity>
@@ -91,6 +96,7 @@ const QueueList: React.FC<QueueListProps> = ({
           <TouchableOpacity
             style={styles.viewDetailsButton}
             onPress={() => onDetails(item.id)}
+            activeOpacity={0.7}
           >
             <Text style={styles.viewDetailsButtonText}>View Details</Text>
           </TouchableOpacity>
@@ -100,11 +106,10 @@ const QueueList: React.FC<QueueListProps> = ({
     }
   };
 
+  const ListSeparator = () => <View style={styles.rowDivider} />;
+
   const renderQueueItem = ({ item }: { item: QueueItem }) => (
-    <View style={[
-      styles.queueCard,
-      item.state === 'IN_PROGRESS' && styles.inProgressCard
-    ]}>
+    <View style={[styles.queueRow, item.state === 'IN_PROGRESS' && styles.inProgressRow]}>
       <View style={styles.clientInfo}>
         <Image
           source={{ uri: item.avatarUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face' }}
@@ -124,7 +129,6 @@ const QueueList: React.FC<QueueListProps> = ({
           <Text style={styles.estimateLabel}>{item.estimateLabel}</Text>
         </View>
       </View>
-      
       <View style={styles.statusSection}>
         <Text style={[styles.statusText, { color: getStatusColor(item.state) }]}>
           {getStatusText(item.state)}
@@ -137,45 +141,40 @@ const QueueList: React.FC<QueueListProps> = ({
     </View>
   );
 
-  if (items.length === 0) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.sectionTitle}>Current Queue</Text>
-          <View style={styles.statusChip}>
-            <Text style={styles.statusChipText}>On Time</Text>
-          </View>
-        </View>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>No clients in queue</Text>
-        </View>
+  const cardContent =
+    items.length === 0 ? (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>No clients in queue</Text>
       </View>
+    ) : (
+      <FlatList
+        data={items}
+        renderItem={renderQueueItem}
+        keyExtractor={(item) => item.id}
+        ItemSeparatorComponent={ListSeparator}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={false}
+        contentContainerStyle={styles.listContent}
+      />
     );
-  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.sectionTitle}>Current Queue</Text>
-        <View style={styles.statusChip}>
-          <Text style={styles.statusChipText}>On Time</Text>
+        <View style={styles.onTimeIndicator}>
+          <View style={styles.onTimeDot} />
+          <Text style={styles.onTimeText}>On Time</Text>
         </View>
       </View>
-      <FlatList
-        data={items}
-        renderItem={renderQueueItem}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={false}
-      />
+      <View style={styles.card}>{cardContent}</View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: cleanScheduler.sectionSpacing,
   },
   header: {
     flexDirection: 'row',
@@ -186,32 +185,49 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
   },
-  statusChip: {
-    backgroundColor: colors.accent.success,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+  onTimeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  statusChipText: {
+  onTimeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: cleanScheduler.status.available,
+  },
+  onTimeText: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
-    color: colors.white,
+    color: cleanScheduler.status.available,
   },
-  queueCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+  card: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    overflow: 'hidden',
+  },
+  listContent: {
+    paddingVertical: spacing.xs,
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+    marginHorizontal: cleanScheduler.padding,
+  },
+  queueRow: {
+    padding: cleanScheduler.padding,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    ...shadows.sm,
+    minHeight: 44,
   },
-  inProgressCard: {
+  inProgressRow: {
     borderLeftWidth: 4,
-    borderLeftColor: colors.accent.success,
+    borderLeftColor: cleanScheduler.status.available,
   },
   clientInfo: {
     flexDirection: 'row',
@@ -236,16 +252,16 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
   },
   serviceName: {
     fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.body,
     marginBottom: spacing.xs,
   },
   estimateLabel: {
     fontSize: typography.fontSize.xs,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
   },
   statusSection: {
     alignItems: 'flex-end',
@@ -257,7 +273,7 @@ const styles = StyleSheet.create({
   },
   timeLabel: {
     fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
     marginBottom: spacing.sm,
   },
   buttonRow: {
@@ -266,68 +282,55 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
+    paddingVertical: 10,
+    borderRadius: 8,
     minWidth: 60,
+    minHeight: 36,
     alignItems: 'center',
-  },
-  pauseButton: {
-    backgroundColor: colors.accent.warning,
-  },
-  pauseButtonText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
-  },
-  completeButton: {
-    backgroundColor: colors.accent.success,
-  },
-  completeButtonText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.white,
+    justifyContent: 'center',
   },
   primaryButton: {
-    backgroundColor: colors.accent.primary,
+    backgroundColor: cleanScheduler.primary,
   },
   primaryButtonText: {
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.white,
   },
   secondaryButton: {
-    backgroundColor: colors.background.secondary,
+    backgroundColor: cleanScheduler.secondary.bg,
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: cleanScheduler.card.border,
   },
   secondaryButtonText: {
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.secondary.text,
   },
   emptyState: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
+    paddingVertical: 24,
+    paddingHorizontal: cleanScheduler.padding,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyStateText: {
     fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
   },
   viewDetailsButton: {
-    backgroundColor: '#0F172A',
+    backgroundColor: cleanScheduler.primary,
     borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 100,
+    minHeight: 36,
   },
   viewDetailsButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.white,
   },
 });
 

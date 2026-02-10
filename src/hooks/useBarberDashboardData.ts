@@ -4,16 +4,16 @@ import {
   QuickAction,
   QueueItem,
   DayProgress,
-  MonthlyProgress,
-  NotificationItem,
   SubscriptionInsights,
   QuickSettings,
 } from '../types';
 import { AppointmentService } from '../services/AppointmentService';
 import { useApp } from '../context/AppContext';
+import { useBarberNotifications } from './useBarberNotifications';
 
 // Helper function to format time from 24h to 12h
-const formatTime12Hour = (time24: string): string => {
+const formatTime12Hour = (time24: string | undefined): string => {
+  if (!time24) return '--:--';
   const [hours, minutes] = time24.split(':').map(Number);
   const period = hours >= 12 ? 'PM' : 'AM';
   const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
@@ -21,7 +21,9 @@ const formatTime12Hour = (time24: string): string => {
 };
 
 // Helper to determine appointment state based on current time
-const getAppointmentState = (appointmentTime: string): QueueItem['state'] => {
+const getAppointmentState = (appointmentTime: string | undefined): QueueItem['state'] => {
+  if (!appointmentTime) return 'SCHEDULED';
+
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
@@ -46,24 +48,24 @@ const getAppointmentState = (appointmentTime: string): QueueItem['state'] => {
 
 // Transform appointment to QueueItem
 const transformToQueueItem = (appointment: any): QueueItem => {
-  const state = getAppointmentState(appointment.appointment_time);
-  const timeFormatted = formatTime12Hour(appointment.appointment_time);
+  const state = getAppointmentState(appointment.appointmentTime);
+  const timeFormatted = formatTime12Hour(appointment.appointmentTime);
 
-  // For walk-ins, use customer_name; for bookings, use customer.full_name
-  const clientName = appointment.appointment_type === 'walk_in'
-    ? appointment.customer_name || 'Walk-In Customer'
+  // For walk-ins, use customerName; for bookings, use customer.full_name
+  const clientName = appointment.appointmentType === 'walk_in'
+    ? appointment.customerName || 'Walk-In Customer'
     : appointment.customer?.full_name || 'Unknown Customer';
 
   return {
     id: appointment.id,
     clientName,
     avatarUrl: appointment.customer?.avatar_url,
-    serviceName: appointment.service_name,
+    serviceName: appointment.serviceName,
     state,
     startTimeLabel: state === 'IN_PROGRESS' ? `Started ${timeFormatted}` : undefined,
     nextTimeLabel: state !== 'IN_PROGRESS' ? timeFormatted : undefined,
-    estimateLabel: `Est. ${appointment.service_duration} min • $${appointment.service_price.toFixed(2)}`,
-    appointmentType: appointment.appointment_type || 'booking',
+    estimateLabel: `Est. ${appointment.serviceDuration} min • $${appointment.servicePrice?.toFixed(2) || '0.00'}`,
+    appointmentType: appointment.appointmentType || 'booking',
   };
 };
 
@@ -74,15 +76,27 @@ export const useBarberDashboardData = () => {
   const [todaysAppointments, setTodaysAppointments] = useState<any[]>([]);
 
   // Calculate stats from real appointments
+  // Find next upcoming scheduled appointment (not completed/cancelled and in the future)
+  const now = new Date();
+  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`;
+
+  const nextUpcomingAppointment = todaysAppointments.find(apt =>
+    apt.status === 'scheduled' &&
+    apt.appointmentTime &&
+    apt.appointmentTime >= currentTime
+  );
+
   const stats: BarberStats = {
     todayAppointments: todaysAppointments.length,
     todayCutsUsed: todaysAppointments
       .filter(apt => apt.status === 'completed')
-      .reduce((sum, apt) => sum + (apt.cuts_used || 0), 0),
-    nextAppt: todaysAppointments.length > 0
+      .reduce((sum, apt) => sum + (apt.cutsUsed || 0), 0),
+    nextAppt: nextUpcomingAppointment
       ? {
-          timeLabel: formatTime12Hour(todaysAppointments[0].appointment_time),
-          clientName: todaysAppointments[0].customer?.full_name || 'Unknown',
+          timeLabel: formatTime12Hour(nextUpcomingAppointment.appointmentTime),
+          clientName: nextUpcomingAppointment.appointmentType === 'walk_in'
+            ? nextUpcomingAppointment.customerName || 'Walk-In Customer'
+            : nextUpcomingAppointment.customer?.full_name || 'Unknown',
         }
       : undefined,
   };
@@ -118,7 +132,7 @@ export const useBarberDashboardData = () => {
   const queue: QueueItem[] = todaysAppointments
     .filter(apt => {
       // Filter out past appointments by comparing full datetime
-      const appointmentDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
+      const appointmentDateTime = new Date(`${apt.appointmentDate}T${apt.appointmentTime}`);
       const now = new Date();
       return appointmentDateTime >= now;
     })
@@ -127,38 +141,28 @@ export const useBarberDashboardData = () => {
   // Calculate day progress
   const dayProgress: DayProgress = {
     completedCount: todaysAppointments.filter(apt => apt.status === 'completed').length,
-    remainingCount: todaysAppointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed').length,
+    remainingCount: todaysAppointments.filter(apt =>
+      apt.status !== 'completed' &&
+      apt.status !== 'cancelled' &&
+      apt.status !== 'no_show'
+    ).length,
+    canceledCount: todaysAppointments.filter(apt =>
+      apt.status === 'cancelled' ||
+      apt.status === 'no_show'
+    ).length,
   };
 
-  const [monthlyProgress] = useState<MonthlyProgress>({
-    percent: 48,
-    doneLabel: '96 cuts / 200 subscribed',
-    remainingLabel: '104 remaining',
-  });
-
-  const [notifications] = useState<NotificationItem[]>([
-    {
-      id: '1',
-      title: 'New appointment booked',
-      subtitle: 'Sarah Davis • 3:30 PM today',
-      ctaLabel: 'View',
-      type: 'info',
-    },
-    {
-      id: '2',
-      title: 'Running 15 min behind',
-      subtitle: 'Consider adjusting schedule',
-      ctaLabel: 'Fix',
-      type: 'warning',
-    },
-    {
-      id: '3',
-      title: 'New 5-star review',
-      subtitle: 'From Mike Johnson',
-      ctaLabel: 'Read',
-      type: 'review',
-    },
-  ]);
+  const barberId = appState.user?.role === 'barber' ? appState.user?.id : undefined;
+  const {
+    items: notifications,
+    loading: notificationsLoading,
+    error: notificationsError,
+    hasMore: notificationsHasMore,
+    loadingMore: notificationsLoadingMore,
+    refresh: refreshNotifications,
+    loadMore: loadMoreNotifications,
+    markAsRead: markNotificationAsRead,
+  } = useBarberNotifications(barberId);
 
   const [insights] = useState<SubscriptionInsights>({
     plans: [
@@ -181,15 +185,16 @@ export const useBarberDashboardData = () => {
       return;
     }
 
+    console.log('🔄 Dashboard: Fetching appointments...');
     setLoading(true);
     setError(null);
 
     try {
       // Fetch today's appointments for this barber
       const appointments = await AppointmentService.getBarberTodaysAppointments(appState.user.id);
-      console.log('📋 Dashboard: Appointments fetched:', appointments);
-      console.log('👤 Dashboard: First appointment customer:', appointments[0]?.customer);
-      console.log('👤 Dashboard: First appointment full data:', JSON.stringify(appointments[0], null, 2));
+      console.log('📋 Dashboard: Appointments fetched:', appointments.length, 'appointments');
+      console.log('📋 Dashboard: Completed count:', appointments.filter(a => a.status === 'completed').length);
+      console.log('📋 Dashboard: Scheduled count:', appointments.filter(a => a.status === 'scheduled').length);
       setTodaysAppointments(appointments);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -217,8 +222,14 @@ export const useBarberDashboardData = () => {
     actions,
     queue,
     dayProgress,
-    monthlyProgress,
     notifications,
+    notificationsLoading,
+    notificationsError,
+    notificationsHasMore,
+    notificationsLoadingMore,
+    refreshNotifications,
+    loadMoreNotifications,
+    markNotificationAsRead,
     insights,
     quickSettings,
     updateQuickSetting,

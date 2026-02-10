@@ -19,13 +19,14 @@ import BookScreen from '../screens/BookScreen';
 import AppointmentsScreen from '../screens/AppointmentsScreen';
 import RewardsScreen from '../screens/RewardsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import AdminScreen from '../screens/AdminScreen';
+import BarberServicesScreen from '../screens/BarberServicesScreen';
 import BarberProfileScreen from '../screens/BarberProfileScreen';
 import BarberDashboardScreen from '../screens/BarberDashboardScreen';
 import BarberWeeklyScheduleScreen from '../screens/BarberWeeklyScheduleScreen';
 import BarberAppointmentsScreen from '../screens/BarberAppointmentsScreen';
 import AppointmentDetailsScreen from '../screens/AppointmentDetailsScreen';
 import ActivityScreen from '../screens/ActivityScreen';
+import BarberOnboardingNavigator from '../screens/onboarding/BarberOnboardingNavigator';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -225,9 +226,18 @@ const MainTabNavigator = () => {
       )}
       {isBarber && (
         <Tab.Screen
-          name="Admin"
-          component={AdminScreen}
-          options={{ title: 'Services' }}
+          name="Services"
+          component={BarberServicesScreen}
+          options={{
+            title: 'Services',
+            tabBarIcon: ({ focused }) => (
+              <Ionicons
+                name={focused ? 'cut' : 'cut-outline'}
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+              />
+            ),
+          }}
         />
       )}
       <Tab.Screen
@@ -240,8 +250,17 @@ const MainTabNavigator = () => {
 };
 
 const AppNavigator = () => {
-  const { state } = useApp();
+  const { state, syncUser } = useApp();
   const { session } = useAuth();
+
+  // Determine if barber needs onboarding
+  const isBarber = state.user?.role === 'barber';
+  const needsOnboarding = isBarber && !state.user?.onboardingCompleted;
+
+  const handleOnboardingComplete = async () => {
+    // Refresh user data to get updated onboarding status
+    await syncUser();
+  };
 
   return (
     <NavigationContainer>
@@ -262,32 +281,44 @@ const AppNavigator = () => {
       >
         {session && state.user ? (
           <>
-            <Stack.Screen
-              name="Main"
-              component={MainTabNavigator}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Subscription"
-              component={SubscriptionScreen}
-              options={{ title: 'Choose Subscription' }}
-            />
-            <Stack.Screen
-              name="BarberProfile"
-              component={BarberProfileScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AppointmentDetails"
-              component={AppointmentDetailsScreen}
-              options={{ headerShown: false }}
-            />
+            {needsOnboarding ? (
+              // Show onboarding for barbers who haven't completed it
+              <Stack.Screen
+                name="Onboarding"
+                options={{ headerShown: false }}
+              >
+                {() => <BarberOnboardingNavigator onComplete={handleOnboardingComplete} />}
+              </Stack.Screen>
+            ) : (
+              <>
+                <Stack.Screen
+                  name="Main"
+                  component={MainTabNavigator}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="Subscription"
+                  component={SubscriptionScreen}
+                  options={{ title: 'Choose Subscription' }}
+                />
+                <Stack.Screen
+                  name="BarberProfile"
+                  component={BarberProfileScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="AppointmentDetails"
+                  component={AppointmentDetailsScreen}
+                  options={{ headerShown: false }}
+                />
+              </>
+            )}
           </>
         ) : (
           // Show SignInScreen when not authenticated
-          <Stack.Screen 
-            name="SignIn" 
-            component={SignInScreen} 
+          <Stack.Screen
+            name="SignIn"
+            component={SignInScreen}
             options={{ headerShown: false }}
           />
         )}

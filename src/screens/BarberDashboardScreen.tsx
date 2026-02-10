@@ -5,17 +5,15 @@ import { useBarberDashboardData } from '../hooks/useBarberDashboardData';
 import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
-import { Appointment, Service } from '../types';
+import { cleanScheduler } from '../theme/cleanScheduler';
+import { Appointment, NotificationItem, Service } from '../types';
 import { AppointmentService, CreateWalkInAppointmentData } from '../services/AppointmentService';
 import { ServiceService } from '../services/ServiceService';
 
 // Import dashboard components
-import TodaysScheduleCard from '../components/barberDashboard/TodaysScheduleCard';
+import TodaysAppointmentsCard from '../components/barberDashboard/TodaysAppointmentsCard';
 import QueueList from '../components/barberDashboard/QueueList';
-import TodaysProgress from '../components/barberDashboard/TodaysProgress';
 import NotificationsList from '../components/barberDashboard/NotificationsList';
-import SubscriptionInsightsCard from '../components/barberDashboard/SubscriptionInsightsCard';
-import QuickSettingsPanel from '../components/barberDashboard/QuickSettingsPanel';
 import { AppointmentDetailSheet } from '../components/AppointmentDetailSheet';
 import { WalkInFormBottomSheet } from '../components/WalkInFormBottomSheet';
 
@@ -29,11 +27,12 @@ const BarberDashboardScreen: React.FC = () => {
     actions,
     queue,
     dayProgress,
-    monthlyProgress,
     notifications,
-    insights,
-    quickSettings,
-    updateQuickSetting,
+    notificationsLoading,
+    notificationsHasMore,
+    notificationsLoadingMore,
+    loadMoreNotifications,
+    markNotificationAsRead,
     refreshData,
   } = useBarberDashboardData();
 
@@ -67,12 +66,19 @@ const BarberDashboardScreen: React.FC = () => {
 
   // Navigation handlers
   const handleViewAllSchedule = () => {
-    navigation.navigate('Appointments');
+    navigation.navigate('BarberAppointments');
   };
 
-  const handleNotificationPress = (item: any) => {
-    console.log('Notification pressed:', item);
-    // TODO: Navigate to appropriate screen based on notification type
+  const handleNotificationPress = async (item: NotificationItem) => {
+    if (item.read_at == null && markNotificationAsRead) {
+      await markNotificationAsRead(item.id);
+    }
+    if (item.entity_type === 'appointment' && item.entity_id) {
+      await handleDetails(item.entity_id);
+    } else if (item.entity_type === 'subscription' || item.entity_type === 'customer') {
+      // No customer/subscription detail screen yet; just marked as read
+      navigation.navigate('BarberAppointments');
+    }
   };
 
   // Queue action handlers
@@ -118,6 +124,13 @@ const BarberDashboardScreen: React.FC = () => {
     setSelectedAppointment(null);
   };
 
+  const handleStatusUpdated = async () => {
+    console.log('🔄 Dashboard: Status updated, refreshing data...');
+    if (refreshData) {
+      await refreshData();
+    }
+  };
+
   // Walk-in handlers
   const handleAddWalkIn = () => {
     if (!user?.id) {
@@ -160,14 +173,15 @@ const BarberDashboardScreen: React.FC = () => {
 
 	return (
 		<SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Today's Schedule */}
-        <TodaysScheduleCard
+        {/* Today's Appointments */}
+        <TodaysAppointmentsCard
           stats={stats}
+          dayProgress={dayProgress}
           onViewAll={handleViewAllSchedule}
           onAddWalkIn={handleAddWalkIn}
         />
@@ -182,26 +196,14 @@ const BarberDashboardScreen: React.FC = () => {
           onDetails={handleDetails}
         />
 
-        {/* Today's Progress */}
-        <TodaysProgress
-          completed={dayProgress}
-          remaining={dayProgress}
-          monthly={monthlyProgress}
-        />
-
         {/* Notifications */}
         <NotificationsList
           items={notifications}
           onPress={handleNotificationPress}
-        />
-
-        {/* Subscription Insights */}
-        <SubscriptionInsightsCard insights={insights} />
-
-        {/* Quick Settings */}
-        <QuickSettingsPanel
-          settings={quickSettings}
-          onToggle={updateQuickSetting}
+          loading={notificationsLoading}
+          hasMore={notificationsHasMore}
+          loadingMore={notificationsLoadingMore}
+          onLoadMore={loadMoreNotifications}
         />
 			</ScrollView>
 
@@ -211,6 +213,7 @@ const BarberDashboardScreen: React.FC = () => {
         appointment={selectedAppointment}
         userRole="barber"
         onClose={handleCloseDetailsSheet}
+        onStatusUpdated={handleStatusUpdated}
       />
 
       {/* Walk-In Form Bottom Sheet */}
@@ -230,13 +233,15 @@ const BarberDashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-    backgroundColor: colors.background.primary,
+		backgroundColor: cleanScheduler.background,
 	},
 	scrollView: {
 		flex: 1,
 	},
-  scrollContent: {
-    paddingBottom: spacing.xl,
+	scrollContent: {
+		paddingHorizontal: cleanScheduler.padding,
+		paddingTop: cleanScheduler.sectionSpacing,
+		paddingBottom: spacing.xl,
 	},
 });
 

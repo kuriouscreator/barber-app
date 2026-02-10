@@ -800,7 +800,6 @@ export class AppointmentService {
         .select('*')
         .eq('barber_id', barberId)
         .eq('appointment_date', today)
-        .in('status', ['scheduled', 'confirmed'])
         .order('appointment_time', { ascending: true });
 
       if (appointmentsError) throw appointmentsError;
@@ -832,11 +831,13 @@ export class AppointmentService {
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
       console.log('🔍 AppointmentService: ProfileMap size:', profileMap.size);
 
-      // Merge appointments with customer data
-      const merged = appointments.map(apt => ({
-        ...apt,
-        customer: profileMap.get(apt.user_id) || null,
-      }));
+      // Merge appointments with customer data and map to Appointment objects
+      const merged = appointments.map(apt =>
+        this.mapToAppointment({
+          ...apt,
+          customer: profileMap.get(apt.user_id) || null,
+        })
+      );
 
       console.log('🔍 AppointmentService: First merged appointment customer:', merged[0]?.customer);
       return merged;
@@ -1021,11 +1022,13 @@ export class AppointmentService {
       // Create a map of profiles for quick lookup
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-      // Merge appointments with customer data
-      const merged = appointments.map(apt => ({
-        ...apt,
-        customer: profileMap.get(apt.user_id) || null,
-      }));
+      // Merge appointments with customer data and map to Appointment objects
+      const merged = appointments.map(apt =>
+        this.mapToAppointment({
+          ...apt,
+          customer: profileMap.get(apt.user_id) || null,
+        })
+      );
 
       return merged;
     } catch (error) {

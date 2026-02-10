@@ -11,12 +11,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Service } from '../types';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { spacing, borderRadius, shadows } from '../theme/spacing';
+import { spacing } from '../theme/spacing';
+import { cleanScheduler } from '../theme/cleanScheduler';
 
 interface ServiceEditModalProps {
   visible: boolean;
@@ -123,7 +123,6 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -141,14 +140,18 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
           <Text style={styles.title}>Edit Service</Text>
-          <View style={styles.placeholder} />
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={cleanScheduler.text.subtext} />
+          </TouchableOpacity>
         </View>
+        <View style={styles.headerDivider} />
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Service Name</Text>
@@ -157,7 +160,7 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
                 value={formData.name}
                 onChangeText={(value) => handleInputChange('name', value)}
                 placeholder="e.g., Classic Haircut"
-                placeholderTextColor={colors.gray[400]}
+                placeholderTextColor={cleanScheduler.text.subtext}
               />
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
             </View>
@@ -170,7 +173,7 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
                   value={formData.duration}
                   onChangeText={(value) => handleInputChange('duration', value)}
                   placeholder="30"
-                  placeholderTextColor={colors.gray[400]}
+                  placeholderTextColor={cleanScheduler.text.subtext}
                   keyboardType="numeric"
                 />
                 {errors.duration && <Text style={styles.errorText}>{errors.duration}</Text>}
@@ -183,7 +186,7 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
                   value={formData.price}
                   onChangeText={(value) => handleInputChange('price', value)}
                   placeholder="25"
-                  placeholderTextColor={colors.gray[400]}
+                  placeholderTextColor={cleanScheduler.text.subtext}
                   keyboardType="numeric"
                 />
                 {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
@@ -197,7 +200,7 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
                 value={formData.description}
                 onChangeText={(value) => handleInputChange('description', value)}
                 placeholder="Brief description of the service"
-                placeholderTextColor={colors.gray[400]}
+                placeholderTextColor={cleanScheduler.text.subtext}
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
@@ -207,33 +210,23 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
           </View>
         </ScrollView>
 
+        <View style={styles.footerDivider} />
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={handleDelete}
+            activeOpacity={0.7}
           >
-            <Ionicons name="trash-outline" size={20} color={colors.accent.error} />
+            <Ionicons name="trash-outline" size={20} color={cleanScheduler.status.unavailable} />
             <Text style={styles.deleteButtonText}>Delete Service</Text>
           </TouchableOpacity>
 
-          <View style={styles.saveButtonContainer}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={onClose}
-            >
+          <View style={styles.footerButtons}>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSave}
-            >
-              <LinearGradient 
-                start={{x:0, y:0}}
-                end={{x:0, y:1}}
-                colors={[colors.black, colors.gray[700]]}
-                style={styles.saveButton}
-              >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              </LinearGradient>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.7}>
+              <Text style={styles.saveButtonText}>Save Changes</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -245,36 +238,39 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: colors.white,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: spacing.lg,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingVertical: 16,
     backgroundColor: colors.white,
-    borderBottomColor: colors.border.light,
-    borderBottomWidth: 1,
   },
-  closeButton: {
-    padding: spacing.xs,
+  headerDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
   },
   title: {
-    fontSize: typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
   },
-  placeholder: {
-    width: 40,
+  closeButton: {
+    padding: 4,
   },
   content: {
     flex: 1,
   },
-  form: {
-    padding: spacing.lg,
+  scrollContent: {
+    paddingHorizontal: cleanScheduler.padding,
+    paddingTop: cleanScheduler.sectionSpacing,
+    paddingBottom: 100,
   },
+  form: {},
   inputGroup: {
-    marginBottom: spacing.lg,
+    marginBottom: cleanScheduler.sectionSpacing,
   },
   inputRow: {
     flexDirection: 'row',
@@ -284,19 +280,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
+    fontSize: 14,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.text.heading,
     marginBottom: spacing.xs,
   },
   input: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: cleanScheduler.input.radius,
+    padding: cleanScheduler.padding,
     fontSize: typography.fontSize.base,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: cleanScheduler.input.border,
   },
   inputError: {
     borderColor: colors.accent.error,
@@ -309,54 +305,61 @@ const styles = StyleSheet.create({
     color: colors.accent.error,
     marginTop: spacing.xs,
   },
+  footerDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+  },
   footer: {
-    padding: spacing.lg,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingVertical: 16,
+    paddingBottom: 16,
     backgroundColor: colors.white,
-    borderTopColor: colors.border.light,
-    borderTopWidth: 1,
   },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
+    paddingVertical: 12,
+    marginBottom: 12,
+    backgroundColor: 'transparent',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.accent.error,
+    borderColor: cleanScheduler.status.unavailable,
   },
   deleteButtonText: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.accent.error,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.status.unavailable,
     marginLeft: spacing.xs,
   },
-  saveButtonContainer: {
+  footerButtons: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: 12,
   },
   cancelButton: {
     flex: 1,
-    padding: spacing.md,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.button,
+    paddingVertical: 16,
+    backgroundColor: cleanScheduler.secondary.bg,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.secondary,
+    fontSize: 16,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.secondary.text,
   },
   saveButton: {
     flex: 1,
-    padding: spacing.md,
-    borderRadius: borderRadius.button,
+    paddingVertical: 16,
+    backgroundColor: cleanScheduler.primary,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   saveButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: 16,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.white,
   },
 });

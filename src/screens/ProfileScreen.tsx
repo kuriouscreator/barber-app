@@ -12,7 +12,7 @@ import {
 import { StackNavigationProp } from '@react-navigation/stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { DarkHeroHeader } from '../components/DarkHeroHeader';
 import * as ImagePicker from 'expo-image-picker';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { useApp } from '../context/AppContext';
@@ -23,10 +23,12 @@ import { RewardsService } from '../services/RewardsService';
 import { uploadAvatar } from '../services/storage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
+import { cleanScheduler } from '../theme/cleanScheduler';
 import SubscriptionManagementSheet from '../components/SubscriptionManagementSheet';
 import { formatSubscriptionPrice, formatPriceAmountToDollars } from '../utils/priceFormatter';
 import { SettingsSheet, SettingsSheetRef } from '../components/SettingsSheet';
 import { PersonalInformationForm } from '../components/PersonalInformationForm';
+import { BusinessInformationForm } from '../components/BusinessInformationForm';
 import { NotificationsForm } from '../components/NotificationsForm';
 import { PaymentMethodsSheet, PaymentMethodsSheetRef } from '../components/PaymentMethodsSheet';
 import { PreferencesSheet, PreferencesSheetRef } from '../components/PreferencesSheet';
@@ -46,6 +48,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [autoRenew, setAutoRenew] = useState<boolean>(true);
   const subscriptionSheetRef = useRef<any>(null);
   const personalInfoSheetRef = useRef<SettingsSheetRef>(null);
+  const businessInfoSheetRef = useRef<SettingsSheetRef>(null);
   const notificationsSheetRef = useRef<SettingsSheetRef>(null);
   const paymentMethodsSheetRef = useRef<PaymentMethodsSheetRef>(null);
   const preferencesSheetRef = useRef<PreferencesSheetRef>(null);
@@ -248,6 +251,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       case 'personal-info':
         personalInfoSheetRef.current?.open();
         break;
+      case 'business-info':
+        businessInfoSheetRef.current?.open();
+        break;
       case 'payment':
         paymentMethodsSheetRef.current?.open();
         break;
@@ -265,6 +271,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const handlePersonalInfoSaved = async () => {
     personalInfoSheetRef.current?.close();
     // Refresh user data to reflect the updated profile
+    await syncUser();
+  };
+
+  const handleBusinessInfoSaved = async () => {
+    businessInfoSheetRef.current?.close();
     await syncUser();
   };
 
@@ -306,12 +317,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header Section with Dark Gradient */}
-        <LinearGradient
-          colors={['#0F172A', '#1E293B']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
+        <DarkHeroHeader contentStyle={{ paddingBottom: 56 }}>
           {/* User Info */}
           <View style={styles.userInfoSection}>
             <TouchableOpacity onPress={handleAvatarUpload} style={styles.avatarContainer}>
@@ -333,138 +339,206 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Plan and Points Cards Row */}
-          <View style={styles.headerCardsRow}>
-            {/* Current Plan Card */}
-            <View style={styles.headerCard}>
-              <Text style={styles.headerCardLabel}>Current Plan</Text>
-              <Text style={styles.headerCardValue}>{profileData.subscription.planName}</Text>
-              <Text style={styles.headerCardSubtext}>{profileData.subscription.price}</Text>
-            </View>
+          {/* Customer: Plan and Points Cards / Barber: Business Info */}
+          {!isBarber ? (
+            <View style={styles.headerCardsRow}>
+              {/* Current Plan Card */}
+              <View style={styles.headerCard}>
+                <Text style={styles.headerCardLabel}>Current Plan</Text>
+                <Text style={styles.headerCardValue}>{profileData.subscription.planName}</Text>
+                <Text style={styles.headerCardSubtext}>{profileData.subscription.price}</Text>
+              </View>
 
-            {/* Points Card */}
-            <View style={styles.headerCard}>
-              <Text style={styles.headerCardLabel}>Points</Text>
-              <Text style={styles.headerCardValue}>{profileData.subscription.points.toLocaleString()}</Text>
-              <Text style={styles.headerCardSubtext}>Rewards balance</Text>
+              {/* Points Card */}
+              <View style={styles.headerCard}>
+                <Text style={styles.headerCardLabel}>Points</Text>
+                <Text style={styles.headerCardValue}>{profileData.subscription.points.toLocaleString()}</Text>
+                <Text style={styles.headerCardSubtext}>Rewards balance</Text>
+              </View>
             </View>
-          </View>
-        </LinearGradient>
+          ) : (
+            <View style={styles.headerCardsRow}>
+              {/* Shop Name Card */}
+              <View style={[styles.headerCard, { flex: 1 }]}>
+                <Text style={styles.headerCardLabel}>Business</Text>
+                <Text style={styles.headerCardValue}>
+                  {user?.shopName || 'Shop Name'}
+                </Text>
+                <Text style={styles.headerCardSubtext}>
+                  {user?.shopCity && user?.shopState
+                    ? `${user.shopCity}, ${user.shopState}`
+                    : 'Location not set'}
+                </Text>
+              </View>
+            </View>
+          )}
+        </DarkHeroHeader>
 
         {/* Main Content */}
         <View style={styles.mainContent}>
-          {/* Subscription Management Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Subscription Management</Text>
-            <View style={styles.subscriptionCard}>
-              <View style={styles.subscriptionRow}>
-                <Text style={styles.subscriptionLabel}>Next Billing</Text>
-                <Text style={styles.subscriptionValue}>
-                  {profileData.subscription.renewsOn || 'N/A'}
-                </Text>
-              </View>
-
-              <View style={styles.subscriptionRow}>
-                <Text style={styles.subscriptionLabel}>Amount</Text>
-                <Text style={styles.subscriptionValue}>{profileData.subscription.price}</Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.autoRenewRow}>
-                <View style={styles.autoRenewLeft}>
-                  <Text style={styles.autoRenewTitle}>Auto-Renew</Text>
-                  <Text style={styles.autoRenewSubtitle}>Subscription renews automatically</Text>
+          {/* Customer: Subscription Management / Barber: Business Info */}
+          {!isBarber ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Subscription Management</Text>
+              <View style={styles.subscriptionCard}>
+                <View style={styles.subscriptionRow}>
+                  <Text style={styles.subscriptionLabel}>Next Billing</Text>
+                  <Text style={styles.subscriptionValue}>
+                    {profileData.subscription.renewsOn || 'N/A'}
+                  </Text>
                 </View>
-                <Switch
-                  value={autoRenew}
-                  onValueChange={handleAutoRenewToggle}
-                  trackColor={{ false: colors.gray[300], true: colors.accent.primary }}
-                  thumbColor={colors.white}
-                  disabled={!userSubscription || userSubscription.status !== 'active'}
-                />
-              </View>
 
-              <TouchableOpacity style={styles.managePlanButton} onPress={handleManageSubscription}>
-                <Text style={styles.managePlanButtonText}>Manage Subscription</Text>
-                <Ionicons name="chevron-forward" size={20} color={colors.accent.primary} />
-              </TouchableOpacity>
+                <View style={styles.subscriptionRow}>
+                  <Text style={styles.subscriptionLabel}>Amount</Text>
+                  <Text style={styles.subscriptionValue}>{profileData.subscription.price}</Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.autoRenewRow}>
+                  <View style={styles.autoRenewLeft}>
+                    <Text style={styles.autoRenewTitle}>Auto-Renew</Text>
+                    <Text style={styles.autoRenewSubtitle}>Subscription renews automatically</Text>
+                  </View>
+                  <Switch
+                    value={autoRenew}
+                    onValueChange={handleAutoRenewToggle}
+                    trackColor={{ false: colors.gray[300], true: colors.accent.primary }}
+                    thumbColor={colors.white}
+                    disabled={!userSubscription || userSubscription.status !== 'active'}
+                  />
+                </View>
+
+                <TouchableOpacity style={styles.managePlanButton} onPress={handleManageSubscription}>
+                  <Text style={styles.managePlanButtonText}>Manage Subscription</Text>
+                  <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Business Information</Text>
+              <View style={styles.businessInfoCard}>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoRowLabel}>Shop Name</Text>
+                  <Text style={styles.infoRowValue}>{user?.shopName || 'Not set'}</Text>
+                </View>
+                {user?.shopPhone ? (
+                  <>
+                    <View style={styles.infoRowDivider} />
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoRowLabel}>Phone</Text>
+                      <Text style={styles.infoRowValue}>{user.shopPhone}</Text>
+                    </View>
+                  </>
+                ) : null}
+                {(user?.shopAddress || (user?.shopCity && user?.shopState)) ? (
+                  <>
+                    <View style={styles.infoRowDivider} />
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoRowLabel}>Address</Text>
+                      <Text style={styles.infoRowValue}>
+                        {[user?.shopAddress, user?.shopCity && user?.shopState ? `${user.shopCity}, ${user.shopState} ${user?.shopZip || ''}`.trim() : null].filter(Boolean).join('\n')}
+                      </Text>
+                    </View>
+                  </>
+                ) : null}
+                <View style={styles.infoRowDivider} />
+                <TouchableOpacity
+                  style={styles.editBusinessRow}
+                  onPress={() => handleSettings('business-info')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.editBusinessRowText}>Edit Business Info</Text>
+                  <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Account Settings */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Account Settings</Text>
-
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => handleSettings('personal-info')}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
-                <Ionicons name="person-outline" size={20} color={colors.gray[700]} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Personal Information</Text>
-                <Text style={styles.settingSubtext}>Name, email, phone number</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => handleSettings('payment')}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
-                <Ionicons name="card-outline" size={20} color={colors.gray[700]} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Payment Methods</Text>
-                <Text style={styles.settingSubtext}>Manage cards & billing</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => handleSettings('notifications')}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
-                <Ionicons name="notifications-outline" size={20} color={colors.gray[700]} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Notifications</Text>
-                <Text style={styles.settingSubtext}>Push, email & SMS preferences</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => handleSettings('privacy')}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={colors.gray[700]} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Privacy & Security</Text>
-                <Text style={styles.settingSubtext}>Password, 2FA & data settings</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => handleSettings('preferences')}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: `${colors.gray[700]}10` }]}>
-                <Ionicons name="heart-outline" size={20} color={colors.gray[700]} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Preferences</Text>
-                <Text style={styles.settingSubtext}>Favorite barbers & services</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
-            </TouchableOpacity>
+            <View style={styles.settingsCard}>
+              {!isBarber && (
+                <>
+                  <TouchableOpacity
+                    style={styles.settingsRow}
+                    onPress={() => handleSettings('personal-info')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.settingsRowIcon}>
+                      <Ionicons name="person-outline" size={20} color={cleanScheduler.text.heading} />
+                    </View>
+                    <View style={styles.settingsRowContent}>
+                      <Text style={styles.settingsRowTitle}>Personal Information</Text>
+                      <Text style={styles.settingsRowSubtitle}>Name, email, phone number</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+                  </TouchableOpacity>
+                  <View style={styles.settingsRowDivider} />
+                  <TouchableOpacity
+                    style={styles.settingsRow}
+                    onPress={() => handleSettings('payment')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.settingsRowIcon}>
+                      <Ionicons name="card-outline" size={20} color={cleanScheduler.text.heading} />
+                    </View>
+                    <View style={styles.settingsRowContent}>
+                      <Text style={styles.settingsRowTitle}>Payment Methods</Text>
+                      <Text style={styles.settingsRowSubtitle}>Manage cards & billing</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+                  </TouchableOpacity>
+                  <View style={styles.settingsRowDivider} />
+                </>
+              )}
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => handleSettings('notifications')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowIcon}>
+                  <Ionicons name="notifications-outline" size={20} color={cleanScheduler.text.heading} />
+                </View>
+                <View style={styles.settingsRowContent}>
+                  <Text style={styles.settingsRowTitle}>Notifications</Text>
+                  <Text style={styles.settingsRowSubtitle}>Push, email & SMS preferences</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+              </TouchableOpacity>
+              <View style={styles.settingsRowDivider} />
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => handleSettings('privacy')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowIcon}>
+                  <Ionicons name="lock-closed-outline" size={20} color={cleanScheduler.text.heading} />
+                </View>
+                <View style={styles.settingsRowContent}>
+                  <Text style={styles.settingsRowTitle}>Privacy & Security</Text>
+                  <Text style={styles.settingsRowSubtitle}>Password, 2FA & data settings</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+              </TouchableOpacity>
+              <View style={styles.settingsRowDivider} />
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => handleSettings('preferences')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowIcon}>
+                  <Ionicons name="heart-outline" size={20} color={cleanScheduler.text.heading} />
+                </View>
+                <View style={styles.settingsRowContent}>
+                  <Text style={styles.settingsRowTitle}>Preferences</Text>
+                  <Text style={styles.settingsRowSubtitle}>Favorite barbers & services</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Logout Button */}
@@ -492,6 +566,17 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             user={user}
             onSaveSuccess={handlePersonalInfoSaved}
             onCancel={() => personalInfoSheetRef.current?.close()}
+          />
+        </SettingsSheet>
+      )}
+
+      {/* Edit Business Info Settings Sheet (barbers only) */}
+      {user && isBarber && (
+        <SettingsSheet ref={businessInfoSheetRef} title="Edit Business Info">
+          <BusinessInformationForm
+            user={user}
+            onSaveSuccess={handleBusinessInfoSaved}
+            onCancel={() => businessInfoSheetRef.current?.close()}
           />
         </SettingsSheet>
       )}
@@ -525,21 +610,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: cleanScheduler.background,
   },
   scrollView: {
     flex: 1,
   },
 
-  // Header Section
-  headerGradient: {
-    paddingTop: 56,
-    paddingBottom: 56,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    marginBottom: -24,
-  },
   userInfoSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -619,10 +695,10 @@ const styles = StyleSheet.create({
 
   // Main Content
   mainContent: {
-    padding: 20,
-    paddingTop: 0,
-    gap: 24,
-    marginTop: -24,
+    backgroundColor: cleanScheduler.background,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingTop: cleanScheduler.sectionSpacing,
+    paddingBottom: cleanScheduler.sectionSpacing,
   },
 
   // Stats Row
@@ -656,12 +732,12 @@ const styles = StyleSheet.create({
 
   // Section
   section: {
-    marginBottom: 8,
+    marginBottom: cleanScheduler.sectionSpacing,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
     marginBottom: 16,
   },
   sectionHeader: {
@@ -676,16 +752,51 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 
-  // Subscription Card
+  // Subscription Card (customer) - system card style
   subscriptionCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    padding: cleanScheduler.padding,
+  },
+  // Business Information card (barber) - system card
+  businessInfoCard: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    padding: cleanScheduler.padding,
+  },
+  infoRow: {
+    paddingVertical: 4,
+  },
+  infoRowLabel: {
+    fontSize: 14,
+    color: cleanScheduler.text.subtext,
+    marginBottom: 2,
+  },
+  infoRowValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: cleanScheduler.text.heading,
+  },
+  infoRowDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+    marginVertical: 12,
+  },
+  editBusinessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    minHeight: 44,
+  },
+  editBusinessRowText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: cleanScheduler.text.heading,
   },
   subscriptionRow: {
     flexDirection: 'row',
@@ -695,16 +806,16 @@ const styles = StyleSheet.create({
   },
   subscriptionLabel: {
     fontSize: 14,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
   },
   subscriptionValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.gray[200],
+    backgroundColor: cleanScheduler.card.border,
     marginVertical: 16,
   },
   autoRenewRow: {
@@ -719,18 +830,18 @@ const styles = StyleSheet.create({
   autoRenewTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
     marginBottom: 4,
   },
   autoRenewSubtitle: {
     fontSize: 14,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
   },
   managePlanButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.gray[50],
+    backgroundColor: cleanScheduler.secondary.bg,
     borderRadius: 12,
     paddingVertical: 14,
     gap: 8,
@@ -738,7 +849,7 @@ const styles = StyleSheet.create({
   managePlanButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.accent.primary,
+    color: cleanScheduler.text.heading,
   },
 
   // Rewards Card
@@ -800,7 +911,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Settings Items
+  // Account Settings - single card with list rows
+  settingsCard: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    overflow: 'hidden',
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: cleanScheduler.padding,
+    minHeight: 44,
+  },
+  settingsRowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: cleanScheduler.secondary.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  settingsRowContent: {
+    flex: 1,
+  },
+  settingsRowTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: cleanScheduler.text.heading,
+    marginBottom: 2,
+  },
+  settingsRowSubtitle: {
+    fontSize: 14,
+    color: cleanScheduler.text.subtext,
+  },
+  settingsRowDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+    marginHorizontal: cleanScheduler.padding,
+  },
+  // Legacy (customer subscription manage button may still reference)
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -808,11 +961,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
   },
   settingIcon: {
     width: 40,

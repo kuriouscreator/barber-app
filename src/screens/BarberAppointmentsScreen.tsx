@@ -15,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius, shadows } from '../theme/spacing';
 import { typography } from '../theme/typography';
+import { cleanScheduler } from '../theme/cleanScheduler';
 import { Appointment, AppointmentFilters } from '../types';
 import { AppointmentService } from '../services/AppointmentService';
 import { SearchBar } from '../components/SearchBar';
@@ -334,7 +335,7 @@ const BarberAppointmentsScreen: React.FC = () => {
     />
   ), [handleAppointmentPress]);
 
-  // Empty state based on tab
+  // Empty state based on tab (inside list card)
   const renderEmptyState = () => {
     if (loading) return null;
 
@@ -369,102 +370,111 @@ const BarberAppointmentsScreen: React.FC = () => {
     }
 
     return (
-      <EmptyState
-        icon={icon}
-        title={title}
-        subtitle={subtitle}
-        actionLabel={actionLabel}
-        onAction={onAction}
-      />
+      <View style={styles.emptyStateCard}>
+        <EmptyState
+          icon={icon}
+          title={title}
+          subtitle={subtitle}
+          actionLabel={actionLabel}
+          onAction={onAction}
+        />
+      </View>
     );
   };
 
+  const ListSeparator = () => <View style={styles.listSeparator} />;
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Appointments</Text>
-      </View>
-
-      {/* Segmented Control */}
-      <View style={styles.segmentedControl}>
-        <TouchableOpacity
-          style={[styles.segment, activeTab === 'today' && styles.segmentActive]}
-          onPress={() => handleTabChange('today')}
-        >
-          <Text style={[styles.segmentText, activeTab === 'today' && styles.segmentTextActive]}>
-            Today
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.segment, activeTab === 'upcoming' && styles.segmentActive]}
-          onPress={() => handleTabChange('upcoming')}
-        >
-          <Text style={[styles.segmentText, activeTab === 'upcoming' && styles.segmentTextActive]}>
-            Upcoming
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.segment, activeTab === 'past' && styles.segmentActive]}
-          onPress={() => handleTabChange('past')}
-        >
-          <Text style={[styles.segmentText, activeTab === 'past' && styles.segmentTextActive]}>
-            Past
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar with Filter Icon */}
-      <SearchBar
-        placeholder="Search by customer or service name"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        onFilterPress={handleOpenFilters}
-        filterCount={countActiveFilters()}
-      />
-
-      {/* Active Filters Indicator */}
-      {countActiveFilters() > 0 && (
-        <View style={styles.activeFiltersContainer}>
-          <View style={styles.activeFiltersPill}>
-            <Text style={styles.activeFiltersText}>
-              {filters.dateRange !== 'all' && dateRangeOptions.find(opt => opt.key === filters.dateRange)?.label}
-              {filters.dateRange !== 'all' && filters.appointmentType !== 'all' && ' • '}
-              {filters.appointmentType !== 'all' && typeOptions.find(opt => opt.key === filters.appointmentType)?.label}
-              {(filters.dateRange !== 'all' || filters.appointmentType !== 'all') && filters.status !== 'all' && ' • '}
-              {filters.status !== 'all' && statusOptions.find(opt => opt.key === filters.status)?.label}
-            </Text>
-            <TouchableOpacity onPress={handleClearFilters} style={styles.clearFiltersButton}>
-              <Ionicons name="close-circle" size={16} color={colors.text.secondary} />
+      <View style={styles.contentWrap}>
+        {/* Segmented Control in card */}
+        <View style={styles.card}>
+          <View style={styles.segmentedControl}>
+            <TouchableOpacity
+              style={[styles.segment, activeTab === 'today' && styles.segmentActive]}
+              onPress={() => handleTabChange('today')}
+            >
+              <Text style={[styles.segmentText, activeTab === 'today' && styles.segmentTextActive]}>
+                Today
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segment, activeTab === 'upcoming' && styles.segmentActive]}
+              onPress={() => handleTabChange('upcoming')}
+            >
+              <Text style={[styles.segmentText, activeTab === 'upcoming' && styles.segmentTextActive]}>
+                Upcoming
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segment, activeTab === 'past' && styles.segmentActive]}
+              onPress={() => handleTabChange('past')}
+            >
+              <Text style={[styles.segmentText, activeTab === 'past' && styles.segmentTextActive]}>
+                Past
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
-      )}
 
-      {/* Appointments List */}
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent.primary} />
+        {/* Search Bar in card */}
+        <View style={[styles.card, styles.searchCardWrap]}>
+          <SearchBar
+            placeholder="Search by customer or service name"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFilterPress={handleOpenFilters}
+            filterCount={countActiveFilters()}
+            variant="cleanScheduler"
+          />
         </View>
-      ) : (
-        <FlatList
-          data={filteredAppointments}
-          renderItem={renderAppointment}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={renderEmptyState}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.accent.primary}
+
+        {/* Active Filters Indicator */}
+        {countActiveFilters() > 0 && (
+          <View style={styles.activeFiltersContainer}>
+            <View style={styles.activeFiltersPill}>
+              <Text style={styles.activeFiltersText}>
+                {filters.dateRange !== 'all' && dateRangeOptions.find(opt => opt.key === filters.dateRange)?.label}
+                {filters.dateRange !== 'all' && filters.appointmentType !== 'all' && ' • '}
+                {filters.appointmentType !== 'all' && typeOptions.find(opt => opt.key === filters.appointmentType)?.label}
+                {(filters.dateRange !== 'all' || filters.appointmentType !== 'all') && filters.status !== 'all' && ' • '}
+                {filters.status !== 'all' && statusOptions.find(opt => opt.key === filters.status)?.label}
+              </Text>
+              <TouchableOpacity onPress={handleClearFilters} style={styles.clearFiltersButton}>
+                <Ionicons name="close-circle" size={16} color={cleanScheduler.text.subtext} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Appointments List in card */}
+        <View style={styles.listCard}>
+          {loading && !refreshing ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={cleanScheduler.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={filteredAppointments}
+              renderItem={renderAppointment}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              ItemSeparatorComponent={ListSeparator}
+              ListEmptyComponent={renderEmptyState}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={cleanScheduler.primary}
+                />
+              }
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              windowSize={10}
             />
-          }
-          initialNumToRender={15}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-        />
-      )}
+          )}
+        </View>
+      </View>
 
       {/* Floating Action Button */}
       {activeTab !== 'past' && (
@@ -517,75 +527,102 @@ const BarberAppointmentsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.primary,
+    backgroundColor: cleanScheduler.background,
   },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
+  contentWrap: {
+    flex: 1,
+    paddingTop: cleanScheduler.sectionSpacing,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingBottom: spacing.xl * 2,
   },
-  headerTitle: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
+  card: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    padding: cleanScheduler.padding,
+    marginBottom: cleanScheduler.sectionSpacing,
+  },
+  searchCardWrap: {
+    marginBottom: spacing.md,
+  },
+  listCard: {
+    flex: 1,
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    overflow: 'hidden',
+    minHeight: 200,
   },
   segmentedControl: {
     flexDirection: 'row',
-    marginHorizontal: spacing.lg,
-    marginVertical: spacing.md,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: cleanScheduler.secondary.bg,
+    borderRadius: cleanScheduler.input.radius,
     padding: 4,
   },
   segment: {
     flex: 1,
     paddingVertical: spacing.sm,
     alignItems: 'center',
-    borderRadius: borderRadius.sm,
+    borderRadius: cleanScheduler.input.radius,
   },
   segmentActive: {
-    backgroundColor: colors.white,
-    ...shadows.sm,
+    backgroundColor: cleanScheduler.card.bg,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
   },
   segmentText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.body,
   },
   segmentTextActive: {
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
   },
   activeFiltersContainer: {
-    paddingHorizontal: spacing.lg,
     marginBottom: spacing.md,
   },
   activeFiltersPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.secondary,
+    backgroundColor: cleanScheduler.secondary.bg,
     borderRadius: borderRadius.full,
     paddingVertical: spacing.xs,
-    paddingLeft: spacing.md,
+    paddingLeft: cleanScheduler.padding,
     paddingRight: spacing.xs,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
   },
   activeFiltersText: {
     fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
     marginRight: spacing.xs,
   },
   clearFiltersButton: {
     padding: spacing.xs,
   },
+  listSeparator: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+    marginHorizontal: cleanScheduler.padding,
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 200,
   },
   listContent: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xl * 2,
+    paddingVertical: spacing.sm,
+    flexGrow: 1,
+  },
+  emptyStateCard: {
+    padding: cleanScheduler.padding,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
   },
   fab: {
     position: 'absolute',
@@ -594,7 +631,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.accent.primary,
+    backgroundColor: cleanScheduler.primary,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.lg,

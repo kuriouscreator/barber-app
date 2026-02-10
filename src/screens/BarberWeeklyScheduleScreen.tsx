@@ -17,14 +17,14 @@ import WeekNavigator from '../components/barberSchedule/WeekNavigator';
 import WeeklyOverview from '../components/barberSchedule/WeeklyOverview';
 import ExceptionsSection from '../components/barberSchedule/ExceptionsSection';
 import QuickActionsRow from '../components/barberSchedule/QuickActionsRow';
-import WeekStatsCard from '../components/barberSchedule/WeekStatsCard';
 import WeekMiniStats from '../components/barberSchedule/WeekMiniStats';
-import ScheduleTemplates from '../components/barberSchedule/ScheduleTemplates';
 import {
   DayEditorBottomSheet,
   DayEditorSheetRef,
   DayEditData
 } from '../components/barberSchedule/DayEditorBottomSheet';
+import { ScheduleExceptionModal } from '../components/barberSchedule/ScheduleExceptionModal';
+import { CopyWeekModal } from '../components/barberSchedule/CopyWeekModal';
 
 const BarberWeeklyScheduleScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -32,6 +32,10 @@ const BarberWeeklyScheduleScreen: React.FC = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(getCurrentWeekStartISO());
   const [refreshKey, setRefreshKey] = useState(0);
   const dayEditorRef = useRef<DayEditorSheetRef>(null);
+  const exceptionModalRef = useRef<any>(null);
+  const copyWeekModalRef = useRef<any>(null);
+  const [selectedExceptionId, setSelectedExceptionId] = useState<string | null>(null);
+  const [editingException, setEditingException] = useState<any>(null);
 
   // Guard: ensure only barber role can access
   useEffect(() => {
@@ -138,13 +142,62 @@ const BarberWeeklyScheduleScreen: React.FC = () => {
   };
 
   const handleAddException = () => {
-    // TODO: Open add exception modal
-    Alert.alert('Add Exception', 'Add exception modal coming soon');
+    setSelectedExceptionId(null);
+    setEditingException(null);
+    exceptionModalRef.current?.open();
   };
 
-  const handleEditException = (id: string) => {
-    // TODO: Open edit exception modal
-    Alert.alert('Edit Exception', `Edit exception ${id}`);
+  const handleEditException = async (id: string) => {
+    try {
+      // Fetch the full exception data
+      const exceptionsList = await AvailabilityService.getScheduleExceptions(
+        state.user?.id || '',
+        currentWeekStart,
+        addDaysISO(currentWeekStart, 6)
+      );
+      const exception = exceptionsList.find(e => e.id === id);
+      if (exception) {
+        setSelectedExceptionId(id);
+        setEditingException(exception);
+        exceptionModalRef.current?.open();
+      }
+    } catch (error) {
+      console.error('Error fetching exception:', error);
+      Alert.alert('Error', 'Could not load exception data');
+    }
+  };
+
+  const handleSaveException = async (exceptionData: any) => {
+    try {
+      if (exceptionData.id) {
+        // Update existing exception
+        await AvailabilityService.updateScheduleException(exceptionData.id, {
+          date: exceptionData.date,
+          isAvailable: exceptionData.isAvailable,
+          startTime: exceptionData.startTime,
+          endTime: exceptionData.endTime,
+          reason: exceptionData.reason,
+        });
+        Alert.alert('Success', 'Exception updated successfully');
+      } else {
+        // Create new exception
+        await AvailabilityService.createScheduleException(
+          state.user?.id || '',
+          exceptionData.date,
+          exceptionData.isAvailable,
+          exceptionData.startTime,
+          exceptionData.endTime,
+          exceptionData.reason
+        );
+        Alert.alert('Success', 'Exception created successfully');
+      }
+
+      setRefreshKey(prev => prev + 1); // Trigger refresh
+      setSelectedExceptionId(null);
+    } catch (error) {
+      console.error('Error saving exception:', error);
+      Alert.alert('Error', 'Failed to save exception. Please try again.');
+    }
   };
 
   const handleDeleteException = (id: string) => {
@@ -163,33 +216,37 @@ const BarberWeeklyScheduleScreen: React.FC = () => {
   };
 
   const handleCopyWeek = () => {
-    // TODO: Open copy week modal
-    Alert.alert('Copy Week', 'Copy week modal coming soon');
+    copyWeekModalRef.current?.open();
   };
 
-  const handleBulkEdit = () => {
-    // TODO: Open bulk edit modal
-    Alert.alert('Bulk Edit', 'Bulk edit modal coming soon');
+  const handleCopyWeekConfirm = async (targetWeeks: string[], includeExceptions: boolean) => {
+    if (!state.user?.id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    try {
+      const success = await AvailabilityService.copyWeekSchedule(
+        state.user.id,
+        currentWeekStart,
+        targetWeeks,
+        includeExceptions
+      );
+
+      if (success) {
+        setRefreshKey(prev => prev + 1);
+        const weekCount = targetWeeks.length;
+        const weekWord = weekCount === 1 ? 'week' : 'weeks';
+        Alert.alert('Success', `Schedule copied to ${weekCount} ${weekWord}`);
+      } else {
+        Alert.alert('Error', 'Failed to copy schedule. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error copying week:', error);
+      Alert.alert('Error', 'Failed to copy schedule. Please try again.');
+    }
   };
 
-  const handleCreateTemplate = () => {
-    // TODO: Navigate to template builder
-    Alert.alert('Create Template', 'Template builder coming soon');
-  };
-
-  const handleApplyTemplate = (templateId: string) => {
-    Alert.alert(
-      'Apply Template',
-      'Are you sure you want to apply this template to the current week?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Apply', 
-          onPress: () => actions.applyTemplate(templateId, currentWeekStart)
-        },
-      ]
-    );
-  };
 
   const quickActions = [
     {
@@ -198,13 +255,6 @@ const BarberWeeklyScheduleScreen: React.FC = () => {
       subtitle: 'Apply to other weeks',
       icon: 'copy-outline',
       onPress: handleCopyWeek,
-    },
-    {
-      key: 'bulkEdit',
-      title: 'Bulk Edit',
-      subtitle: 'Edit multiple days',
-      icon: 'create-outline',
-      onPress: handleBulkEdit,
     },
   ];
 
@@ -251,22 +301,9 @@ const BarberWeeklyScheduleScreen: React.FC = () => {
 
         <QuickActionsRow actions={quickActions} />
 
-        <WeekStatsCard
-          hoursTotalLabel="Total Hours"
-          hoursValue={stats.hoursValue}
-          metaLeft={stats.metaLeft}
-          metaRight={stats.metaRight}
-        />
-
         <WeekMiniStats
           availableSlots={stats.availableSlots}
           booked={stats.booked}
-        />
-
-        <ScheduleTemplates
-          templates={templates}
-          onCreateTemplate={handleCreateTemplate}
-          onApplyTemplate={handleApplyTemplate}
         />
 			</ScrollView>
 
@@ -274,6 +311,26 @@ const BarberWeeklyScheduleScreen: React.FC = () => {
       <DayEditorBottomSheet
         ref={dayEditorRef}
         onSave={handleSaveDay}
+      />
+
+      {/* Exception Modal */}
+      <ScheduleExceptionModal
+        ref={exceptionModalRef}
+        barberId={state.user?.id || ''}
+        exception={editingException}
+        onSave={handleSaveException}
+        onClose={() => {
+          setSelectedExceptionId(null);
+          setEditingException(null);
+        }}
+      />
+
+      {/* Copy Week Modal */}
+      <CopyWeekModal
+        ref={copyWeekModalRef}
+        sourceWeekStart={currentWeekStart}
+        onCopy={handleCopyWeekConfirm}
+        onClose={() => {}}
       />
 		</SafeAreaView>
   );

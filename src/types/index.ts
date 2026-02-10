@@ -11,6 +11,17 @@ export interface User {
   avatar?: string;
   memberSince?: string;
   location?: string;
+  // Onboarding fields
+  onboardingCompleted?: boolean;
+  onboardingStep?: number;
+  onboardingCompletedAt?: string;
+  // Shop/business fields (for barbers)
+  shopName?: string;
+  shopAddress?: string;
+  shopCity?: string;
+  shopState?: string;
+  shopZip?: string;
+  shopPhone?: string;
 }
 
 export interface Subscription {
@@ -62,6 +73,8 @@ export interface Appointment {
   appointmentType?: 'booking' | 'walk_in';
   customerName?: string; // For walk-ins without user accounts
   customerPhone?: string; // Optional phone for walk-ins
+  // Populated when fetching (booking appointments)
+  customer?: { full_name?: string; email?: string; avatar_url?: string };
   // Legacy fields for backward compatibility
   userId?: string;
   date?: string;
@@ -148,7 +161,7 @@ export type MainTabParamList = {
   Schedule: undefined;
   Rewards: undefined;
   Profile: undefined;
-  Admin: { initialTab?: 'calendar' | 'services' | 'schedule' };
+  Services: undefined;
   BarberProfile: {
     barberId: string;
     barberName: string;
@@ -199,6 +212,7 @@ export interface QueueItem {
 export interface DayProgress {
   completedCount: number;          // e.g., 3
   remainingCount: number;          // e.g., 4
+  canceledCount: number;           // e.g., 1 (includes cancelled and no_show)
 }
 
 export interface MonthlyProgress {
@@ -207,12 +221,33 @@ export interface MonthlyProgress {
   remainingLabel: string;          // "104 remaining"
 }
 
+/** Barber notification row from barber_notifications (Supabase) */
+export interface BarberNotification {
+  id: string;
+  barber_id: string;
+  shop_id: string | null;
+  type: 'appointment.booked' | 'appointment.canceled' | 'subscription.upgraded' | 'subscription.downgraded' | 'customer.signed_up';
+  title: string;
+  body: string | null;
+  entity_type: 'appointment' | 'subscription' | 'customer' | null;
+  entity_id: string | null;
+  created_at: string;
+  read_at: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
 export interface NotificationItem {
   id: string;
   title: string;                    // "New appointment booked"
   subtitle: string;                 // "Sarah Davis • 3:30 PM today"
   ctaLabel?: string;                // "View" | "Fix" | "Read"
   type?: "info" | "warning" | "review";
+  /** For navigation; from barber_notifications */
+  entity_type?: 'appointment' | 'subscription' | 'customer' | null;
+  entity_id?: string | null;
+  read_at?: string | null;
+  /** For keyset pagination; set when from barber_notifications */
+  created_at?: string;
 }
 
 export interface SubscriptionInsights {

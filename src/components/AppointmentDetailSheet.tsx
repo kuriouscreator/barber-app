@@ -1,16 +1,15 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Platform } from 'react-native';
 import RBSheet from 'react-native-raw-bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar';
 import { format, parse } from 'date-fns';
 import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
-import { componentTokens } from '../theme/components';
+import { cleanScheduler } from '../theme/cleanScheduler';
 import { Appointment, UserRole } from '../types';
 import { ActionListItem } from './native/ActionListItem';
 import { triggerHaptic } from '../utils/haptics';
-import { AppointmentTypeBadge } from './AppointmentTypeBadge';
 import { AppointmentService } from '../services/AppointmentService';
 
 interface AppointmentDetailSheetProps {
@@ -28,6 +27,7 @@ interface AppointmentDetailSheetProps {
 export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProps>(
   ({ appointment, userRole, onClose, onReschedule, onCancel, onReview, onRebook, onViewBarberProfile, onStatusUpdated }, ref) => {
     const rbSheetRef = useRef<any>(null);
+    const insets = useSafeAreaInsets();
 
     // Expose open and close methods to parent
     useImperativeHandle(ref, () => ({
@@ -55,49 +55,6 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
       parsedTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
       return format(parsedTime, 'h:mm a');
     };
-
-    const getStatusConfig = () => {
-      switch (appointment.status) {
-        case 'scheduled':
-          return {
-            icon: 'checkmark',
-            text: 'Booking Confirmed',
-            backgroundColor: 'rgba(99,102,241,0.1)',
-            textColor: colors.gray[600],
-            iconColor: colors.gray[600],
-            iconBackgroundColor: colors.gray[600],
-          };
-        case 'completed':
-          return {
-            icon: 'checkmark-circle',
-            text: 'Completed',
-            backgroundColor: 'rgba(34,197,94,0.1)',
-            textColor: colors.green[600],
-            iconColor: colors.green[600],
-            iconBackgroundColor: colors.green[600],
-          };
-        case 'cancelled':
-          return {
-            icon: 'close-circle',
-            text: 'Cancelled',
-            backgroundColor: 'rgba(239,68,68,0.1)',
-            textColor: colors.red[500],
-            iconColor: colors.red[500],
-            iconBackgroundColor: colors.red[500],
-          };
-        default:
-          return {
-            icon: 'time',
-            text: 'Scheduled',
-            backgroundColor: 'rgba(99,102,241,0.1)',
-            textColor: colors.gray[600],
-            iconColor: colors.gray[600],
-            iconBackgroundColor: colors.gray[600],
-          };
-      }
-    };
-
-    const statusConfig = getStatusConfig();
 
     const handleAddToCalendar = async () => {
       try {
@@ -179,6 +136,24 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
       triggerHaptic('medium');
       const isUpcoming = appointment.status === 'scheduled';
 
+      if (isUpcoming && isBarberView) {
+        Alert.alert(
+          'Manage Appointment',
+          'What would you like to do?',
+          [
+            { text: 'Mark Complete', onPress: () => handleMarkComplete() },
+            { text: 'Mark No-show', onPress: () => handleMarkNoShow() },
+            {
+              text: 'Cancel Appointment',
+              style: 'destructive',
+              onPress: () => handleCancelAppointment(),
+            },
+            { text: 'Close', style: 'cancel' },
+          ]
+        );
+        return;
+      }
+
       if (isUpcoming) {
         Alert.alert(
           'Manage Appointment',
@@ -254,14 +229,6 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
             ]
           );
         }
-      }
-    };
-
-    const handleVenueDetails = () => {
-      triggerHaptic('light');
-      if (onViewBarberProfile) {
-        onClose();
-        setTimeout(() => onViewBarberProfile(appointment), 300);
       }
     };
 
@@ -365,6 +332,8 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
       return method;
     };
 
+    const primaryButtonLabel = appointment.status === 'scheduled' ? 'Manage' : 'View';
+
     return (
       <RBSheet
         ref={rbSheetRef}
@@ -373,208 +342,117 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
         closeDuration={200}
         onClose={onClose}
         customStyles={{
-          wrapper: {
-            backgroundColor: 'rgba(0,0,0,0.5)',
-          },
+          wrapper: { backgroundColor: 'rgba(0,0,0,0.5)' },
           container: {
-            borderTopLeftRadius: componentTokens.bottomSheet.borderRadius,
-            borderTopRightRadius: componentTokens.bottomSheet.borderRadius,
+            borderTopLeftRadius: cleanScheduler.sheet.radius,
+            borderTopRightRadius: cleanScheduler.sheet.radius,
             backgroundColor: colors.white,
           },
-          draggableIcon: {
-            backgroundColor: componentTokens.bottomSheet.handleColor,
-            width: componentTokens.bottomSheet.handleWidth,
-            height: componentTokens.bottomSheet.handleHeight,
-          },
+          draggableIcon: { display: 'none' },
         }}
       >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Main Content */}
-          <View style={styles.mainContent}>
-            {/* Date and Time */}
-            <View style={[styles.dateTimeContainer, { paddingTop: 32 }]}>
-              {appointment.appointmentType && (
-                <View style={styles.badgeContainer}>
-                  <AppointmentTypeBadge type={appointment.appointmentType} size="medium" />
+        <View style={styles.sheetInner}>
+          {/* Header */}
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Appointment details</Text>
+            <TouchableOpacity onPress={() => rbSheetRef.current?.close()} style={styles.sheetCloseBtn}>
+              <Ionicons name="close" size={24} color={cleanScheduler.text.subtext} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.sheetHeaderDivider} />
+
+          {/* Body */}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollViewContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Hero */}
+            <View style={styles.heroSection}>
+              {isWalkIn && (
+                <View style={styles.walkInTag}>
+                  <Text style={styles.walkInTagText}>Walk-in</Text>
                 </View>
               )}
-              <Text style={styles.dateText}>{formatAppointmentDate(appointment.appointmentDate)}</Text>
-              <Text style={styles.timeText}>at {formatAppointmentTime(appointment.appointmentTime)}</Text>
+              <Text style={styles.heroDate}>{formatAppointmentDate(appointment.appointmentDate)} at {formatAppointmentTime(appointment.appointmentTime)}</Text>
               <View style={styles.durationRow}>
-                <Ionicons name="time-outline" size={16} color={colors.gray[500]} />
+                <Ionicons name="time-outline" size={16} color={cleanScheduler.text.subtext} />
                 <Text style={styles.durationText}>{appointment.serviceDuration} min duration</Text>
               </View>
             </View>
 
-            {/* Action Items */}
-            <View style={styles.actionItems}>
-              {!isBarberView && (
-                <>
-                  <ActionListItem
-                    icon="calendar-outline"
-                    iconColor={colors.gray[700]}
-                    iconBackgroundColor={colors.gray[100]}
-                    title="Add to calendar"
-                    subtitle="Set yourself a reminder"
-                    onPress={handleAddToCalendar}
-                  />
-                  <ActionListItem
-                    icon="navigate-outline"
-                    iconColor={colors.gray[700]}
-                    iconBackgroundColor={colors.gray[100]}
-                    title="Getting there"
-                    subtitle={
-                      appointment.venue
-                        ? `${appointment.venue.address}, ${appointment.venue.city}, ${appointment.venue.state}`
-                        : appointment.location || 'Location not available'
-                    }
-                    onPress={handleGetDirections}
-                  />
-                </>
-              )}
-              <ActionListItem
-                icon="calendar"
-                iconColor={colors.orange[600]}
-                iconBackgroundColor={colors.orange[50]}
-                title="Manage appointment"
-                subtitle={
-                  appointment.status === 'scheduled'
-                    ? 'Reschedule or cancel booking'
-                    : appointment.rating
-                    ? 'Rebook this appointment'
-                    : 'Leave a review or rebook'
-                }
-                onPress={handleManageAppointment}
-              />
-            </View>
-
-            {/* Order Summary */}
-            <View style={styles.orderSummaryContainer}>
-              <View style={styles.orderSummaryCard}>
-                <Text style={styles.orderSummaryTitle}>ORDER SUMMARY</Text>
-
-                <View style={styles.serviceRow}>
-                  <View style={styles.barberImageContainer}>
-                    {appointment.barberAvatar ? (
-                      <Image
-                        source={{ uri: appointment.barberAvatar }}
-                        style={styles.barberImage}
-                      />
-                    ) : (
-                      <View style={[styles.barberImage, styles.barberPlaceholder]}>
-                        <Ionicons name="person" size={24} color={colors.gray[400]} />
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.serviceInfo}>
-                    <Text style={styles.serviceName}>{appointment.serviceName}</Text>
-                    <Text style={styles.barberName}>
-                      with {appointment.barberName || 'your barber'}
-                    </Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    {isWalkIn ? (
-                      <Text style={styles.cutsUsed}>${appointment.servicePrice?.toFixed(2) || '0.00'}</Text>
-                    ) : (
-                      <Text style={styles.cutsUsed}>1 cut</Text>
-                    )}
-                  </View>
-                </View>
-
-                {isWalkIn ? (
-                  /* Walk-in appointment info */
-                  <View style={styles.subscriptionInfoContainer}>
-                    <View style={styles.subscriptionRow}>
-                      <View style={styles.subscriptionIconContainer}>
-                        <Ionicons name="person-outline" size={16} color={colors.gray[700]} />
-                      </View>
-                      <View style={styles.subscriptionTextContainer}>
-                        <Text style={styles.subscriptionLabel}>Walk-in Customer</Text>
-                        <Text style={styles.subscriptionValue}>
-                          {appointment.customerName || 'Walk-in Customer'}
-                          {appointment.customerPhone && ` • ${appointment.customerPhone}`}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[styles.subscriptionRow, { marginTop: 12 }]}>
-                      <View style={styles.subscriptionIconContainer}>
-                        <Ionicons name="cash-outline" size={16} color={colors.gray[700]} />
-                      </View>
-                      <View style={styles.subscriptionTextContainer}>
-                        <Text style={styles.subscriptionLabel}>Payment</Text>
-                        <Text style={styles.subscriptionValue}>Cash payment • Not from subscription</Text>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  /* Regular booking subscription info */
-                  <View style={styles.subscriptionInfoContainer}>
-                    <View style={styles.subscriptionRow}>
-                      <View style={styles.subscriptionIconContainer}>
-                        <Ionicons name="cut-outline" size={16} color={colors.gray[700]} />
-                      </View>
-                      <View style={styles.subscriptionTextContainer}>
-                        <Text style={styles.subscriptionLabel}>Deducted from plan</Text>
-                        <Text style={styles.subscriptionValue}>1 cut used from subscription</Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {/* Action Buttons */}
-            {appointment.status === 'scheduled' && (
-              <View style={styles.actionButtonsContainer}>
-                {isBarberView ? (
-                  /* Barber-specific actions */
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.completeButton]}
-                      onPress={handleMarkComplete}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="checkmark-circle" size={20} color={colors.white} />
-                      <Text style={styles.actionButtonText}>Mark Complete</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.noShowButton]}
-                      onPress={handleMarkNoShow}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="alert-circle-outline" size={20} color={colors.orange[600]} />
-                      <Text style={[styles.actionButtonText, { color: colors.orange[600] }]}>Mark No-show</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.cancelButtonBarber]}
-                      onPress={handleCancelAppointment}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="close-circle-outline" size={20} color={colors.red[600]} />
-                      <Text style={[styles.actionButtonText, { color: colors.red[600] }]}>Cancel</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  /* Customer cancel button */
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={handleCancelAppointment}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close-circle-outline" size={20} color={colors.red[600]} />
-                    <Text style={styles.cancelButtonText}>Cancel Appointment</Text>
-                  </TouchableOpacity>
-                )}
+            {/* Customer actions (calendar, directions) - customer only */}
+            {!isBarberView && (
+              <View style={styles.actionItems}>
+                <ActionListItem
+                  icon="calendar-outline"
+                  iconColor={cleanScheduler.text.body}
+                  iconBackgroundColor={cleanScheduler.secondary.bg}
+                  title="Add to calendar"
+                  subtitle="Set yourself a reminder"
+                  onPress={handleAddToCalendar}
+                />
+                <ActionListItem
+                  icon="navigate-outline"
+                  iconColor={cleanScheduler.text.body}
+                  iconBackgroundColor={cleanScheduler.secondary.bg}
+                  title="Getting there"
+                  subtitle={
+                    appointment.venue
+                      ? `${appointment.venue.address}, ${appointment.venue.city}, ${appointment.venue.state}`
+                      : appointment.location || 'Location not available'
+                  }
+                  onPress={handleGetDirections}
+                />
               </View>
             )}
+
+            {/* Summary card */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Service</Text>
+                <Text style={styles.summaryValue}>{appointment.serviceName}</Text>
+                <Text style={styles.summaryPrice}>
+                  {isWalkIn ? `$${appointment.servicePrice?.toFixed(2) || '0.00'}` : '1 cut'}
+                </Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Customer</Text>
+                <View style={styles.summaryValueBlock}>
+                  <Text style={styles.summaryValue}>
+                    {isWalkIn ? (appointment.customerName || 'Walk-in Customer') : (appointment.customer?.full_name || 'Customer')}
+                  </Text>
+                  {(isWalkIn ? appointment.customerPhone : appointment.customer?.email) && (
+                    <Text style={styles.summarySubtext}>
+                      {isWalkIn ? appointment.customerPhone : appointment.customer?.email}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Payment</Text>
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoBoxText}>
+                    {isWalkIn ? 'Cash payment • Not from subscription' : formatPaymentMethod(appointment.paymentMethod) + ' • 1 cut used from subscription'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* Footer */}
+          <View style={styles.sheetFooterDivider} />
+          <View style={[styles.sheetFooter, { paddingBottom: 16 + insets.bottom }]}>
+            <TouchableOpacity style={styles.footerCancelButton} onPress={() => rbSheetRef.current?.close()}>
+              <Text style={styles.footerCancelText}>Close</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.footerPrimaryButton} onPress={handleManageAppointment}>
+              <Text style={styles.footerPrimaryText}>{primaryButtonLabel}</Text>
+            </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
       </RBSheet>
     );
   }
@@ -583,233 +461,164 @@ export const AppointmentDetailSheet = forwardRef<any, AppointmentDetailSheetProp
 AppointmentDetailSheet.displayName = 'AppointmentDetailSheet';
 
 const styles = StyleSheet.create({
+  sheetInner: {
+    flex: 1,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: cleanScheduler.padding,
+    paddingVertical: 16,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: cleanScheduler.text.heading,
+  },
+  sheetCloseBtn: {
+    padding: 4,
+  },
+  sheetHeaderDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+  },
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
-    paddingBottom: 40,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingTop: cleanScheduler.sectionSpacing,
+    paddingBottom: 100,
   },
-  mainContent: {
-    backgroundColor: colors.white,
-    flex: 1,
+  heroSection: {
+    marginBottom: cleanScheduler.sectionSpacing,
   },
-  statusBadgeContainer: {
-    paddingTop: 32,
-    paddingHorizontal: 24,
-    paddingBottom: 19.25,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  walkInTag: {
     alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 9999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(243,156,18,0.15)',
+    borderWidth: 1,
+    borderColor: cleanScheduler.status.warning,
+    marginBottom: 8,
   },
-  statusIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 9999,
-    alignItems: 'center',
-    justifyContent: 'center',
+  walkInTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: cleanScheduler.status.warning,
   },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  dateTimeContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 0,
-    paddingBottom: 25,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-    gap: 8,
-  },
-  badgeContainer: {
-    marginBottom: 12,
-  },
-  dateText: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.gray[900],
-    lineHeight: 37.5,
-  },
-  timeText: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.gray[600],
-    lineHeight: 37.5,
+  heroDate: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: cleanScheduler.text.heading,
+    lineHeight: 24,
   },
   durationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 4,
   },
   durationText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
-    color: colors.gray[500],
-    lineHeight: 24,
+    color: cleanScheduler.text.subtext,
+    lineHeight: 20,
   },
   actionItems: {
-    padding: 24,
-    gap: 24,
+    gap: 12,
+    marginBottom: cleanScheduler.sectionSpacing,
   },
-  orderSummaryContainer: {
-    paddingHorizontal: 24,
-  },
-  orderSummaryCard: {
-    backgroundColor: colors.gray[50],
+  summaryCard: {
+    backgroundColor: colors.white,
+    borderRadius: cleanScheduler.card.radius,
     borderWidth: 1,
-    borderColor: colors.gray[100],
-    borderRadius: 16,
-    padding: 21,
-    gap: 16,
+    borderColor: cleanScheduler.card.border,
+    padding: cleanScheduler.padding,
   },
-  orderSummaryTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.gray[400],
-    letterSpacing: 0.6,
-    lineHeight: 16,
-  },
-  serviceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingBottom: 17,
-  },
-  barberImageContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 9999,
-    borderWidth: 2,
-    borderColor: colors.white,
-    overflow: 'hidden',
-  },
-  barberImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 9999,
-  },
-  barberPlaceholder: {
-    backgroundColor: colors.gray[200],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.gray[900],
-    lineHeight: 24,
-  },
-  barberName: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: colors.gray[500],
-    lineHeight: 20,
-  },
-  priceContainer: {
-    justifyContent: 'center',
-  },
-  cutsUsed: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.gray[900],
-    lineHeight: 24,
-  },
-  subscriptionInfoContainer: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[200],
-  },
-  subscriptionRow: {
+  summaryRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
     gap: 12,
   },
-  subscriptionIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.gray[100],
-    alignItems: 'center',
-    justifyContent: 'center',
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: cleanScheduler.text.subtext,
+    minWidth: 72,
   },
-  subscriptionTextContainer: {
+  summaryValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: cleanScheduler.text.heading,
+  },
+  summaryValueBlock: {
     flex: 1,
   },
-  subscriptionLabel: {
+  summarySubtext: {
+    fontSize: 12,
+    color: cleanScheduler.text.subtext,
+    marginTop: 2,
+  },
+  summaryPrice: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.gray[900],
-    lineHeight: 20,
-    marginBottom: 2,
+    color: cleanScheduler.text.heading,
   },
-  subscriptionValue: {
+  summaryDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
+    marginVertical: 12,
+  },
+  infoBox: {
+    flex: 1,
+    backgroundColor: cleanScheduler.secondary.bg,
+    borderRadius: 8,
+    padding: 12,
+  },
+  infoBoxText: {
     fontSize: 13,
-    fontWeight: '400',
-    color: colors.gray[500],
-    lineHeight: 18,
+    color: cleanScheduler.text.body,
   },
-  actionButtonsContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    gap: 12,
+  sheetFooterDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
   },
-  actionButton: {
+  sheetFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 12,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingTop: 16,
+  },
+  footerCancelButton: {
+    flex: 1,
+    backgroundColor: cleanScheduler.secondary.bg,
     paddingVertical: 16,
-    paddingHorizontal: 24,
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  completeButton: {
-    backgroundColor: colors.accent.success,
+  footerCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: cleanScheduler.text.heading,
   },
-  noShowButton: {
-    backgroundColor: colors.orange[50],
-    borderWidth: 1,
-    borderColor: colors.orange[600],
+  footerPrimaryButton: {
+    flex: 1,
+    backgroundColor: cleanScheduler.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cancelButtonBarber: {
-    backgroundColor: colors.red[50],
-    borderWidth: 1,
-    borderColor: colors.red[200],
-  },
-  actionButtonText: {
+  footerPrimaryText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.white,
-    lineHeight: 24,
-  },
-  cancelButtonContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-  cancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: colors.red[50],
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.red[600],
-    lineHeight: 24,
   },
 });

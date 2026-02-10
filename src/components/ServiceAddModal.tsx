@@ -10,12 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Service } from '../types';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { spacing, borderRadius } from '../theme/spacing';
+import { spacing } from '../theme/spacing';
+import { cleanScheduler } from '../theme/cleanScheduler';
 
 interface ServiceAddModalProps {
   visible: boolean;
@@ -94,7 +94,6 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -112,14 +111,18 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.header}>
+          <Text style={styles.title}>Add Service</Text>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={colors.text.primary} />
+            <Ionicons name="close" size={24} color={cleanScheduler.text.subtext} />
           </TouchableOpacity>
-          <Text style={styles.title}>Add New Service</Text>
-          <View style={styles.placeholder} />
         </View>
+        <View style={styles.headerDivider} />
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Service Name</Text>
@@ -128,7 +131,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
                 value={formData.name}
                 onChangeText={(value) => handleInputChange('name', value)}
                 placeholder="e.g., Classic Haircut"
-                placeholderTextColor={colors.gray[400]}
+                placeholderTextColor={cleanScheduler.text.subtext}
               />
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
             </View>
@@ -141,7 +144,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
                   value={formData.duration}
                   onChangeText={(value) => handleInputChange('duration', value)}
                   placeholder="30"
-                  placeholderTextColor={colors.gray[400]}
+                  placeholderTextColor={cleanScheduler.text.subtext}
                   keyboardType="numeric"
                 />
                 {errors.duration && <Text style={styles.errorText}>{errors.duration}</Text>}
@@ -154,7 +157,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
                   value={formData.price}
                   onChangeText={(value) => handleInputChange('price', value)}
                   placeholder="25"
-                  placeholderTextColor={colors.gray[400]}
+                  placeholderTextColor={cleanScheduler.text.subtext}
                   keyboardType="numeric"
                 />
                 {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
@@ -168,7 +171,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
                 value={formData.description}
                 onChangeText={(value) => handleInputChange('description', value)}
                 placeholder="Brief description of the service"
-                placeholderTextColor={colors.gray[400]}
+                placeholderTextColor={cleanScheduler.text.subtext}
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
@@ -178,27 +181,14 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
           </View>
         </ScrollView>
 
+        <View style={styles.footerDivider} />
         <View style={styles.footer}>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleClose}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSave}
-            >
-              <LinearGradient 
-                start={{x:0, y:0}}
-                end={{x:0, y:1}}
-                colors={[colors.black, colors.gray[700]]}
-                style={styles.saveButton}
-              >
-                <Text style={styles.saveButtonText}>Add Service</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.7}>
+            <Text style={styles.saveButtonText}>Add Service</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -208,36 +198,39 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: colors.white,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: spacing.lg,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingVertical: 16,
     backgroundColor: colors.white,
-    borderBottomColor: colors.border.light,
-    borderBottomWidth: 1,
   },
-  closeButton: {
-    padding: spacing.xs,
+  headerDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
   },
   title: {
-    fontSize: typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
   },
-  placeholder: {
-    width: 40,
+  closeButton: {
+    padding: 4,
   },
   content: {
     flex: 1,
   },
-  form: {
-    padding: spacing.lg,
+  scrollContent: {
+    paddingHorizontal: cleanScheduler.padding,
+    paddingTop: cleanScheduler.sectionSpacing,
+    paddingBottom: 100,
   },
+  form: {},
   inputGroup: {
-    marginBottom: spacing.lg,
+    marginBottom: cleanScheduler.sectionSpacing,
   },
   inputRow: {
     flexDirection: 'row',
@@ -247,19 +240,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
+    fontSize: 14,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.text.heading,
     marginBottom: spacing.xs,
   },
   input: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: cleanScheduler.input.radius,
+    padding: cleanScheduler.padding,
     fontSize: typography.fontSize.base,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: cleanScheduler.input.border,
   },
   inputError: {
     borderColor: colors.accent.error,
@@ -272,37 +265,42 @@ const styles = StyleSheet.create({
     color: colors.accent.error,
     marginTop: spacing.xs,
   },
-  footer: {
-    padding: spacing.lg,
-    backgroundColor: colors.white,
-    borderTopColor: colors.border.light,
-    borderTopWidth: 1,
+  footerDivider: {
+    height: 1,
+    backgroundColor: cleanScheduler.card.border,
   },
-  buttonContainer: {
+  footer: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingVertical: 16,
+    backgroundColor: colors.white,
   },
   cancelButton: {
     flex: 1,
-    padding: spacing.md,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.button,
+    paddingVertical: 16,
+    backgroundColor: cleanScheduler.secondary.bg,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.secondary,
+    fontSize: 16,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.secondary.text,
   },
   saveButton: {
     flex: 1,
-    padding: spacing.md,
-    borderRadius: borderRadius.button,
+    paddingVertical: 16,
+    backgroundColor: cleanScheduler.primary,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   saveButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: 16,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.white,
   },
 });

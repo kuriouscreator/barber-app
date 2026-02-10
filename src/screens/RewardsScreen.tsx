@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { DarkHeroHeader } from '../components/DarkHeroHeader';
 import { colors } from '../theme/colors';
 import { haptics } from '../utils/haptics';
 import { useAuth } from '../hooks/useAuth';
@@ -137,11 +137,9 @@ const RewardsScreen: React.FC = () => {
         }
       >
         {/* Header Section with Gradient */}
-        <LinearGradient
+        <DarkHeroHeader
           colors={['#000000', '#334155']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+          contentStyle={{ paddingTop: 60, paddingBottom: 40, paddingHorizontal: 24 }}
         >
           {/* Points Balance */}
           <View style={styles.balanceSection}>
@@ -163,7 +161,7 @@ const RewardsScreen: React.FC = () => {
               </View>
             </View>
           </View>
-        </LinearGradient>
+        </DarkHeroHeader>
 
         {/* Main Content */}
         <View style={styles.mainContent}>
@@ -454,14 +452,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Header Section
-  headerGradient: {
-    paddingTop: 60,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
   balanceSection: {
     alignItems: 'center',
     marginBottom: 32,

@@ -3,24 +3,23 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SafeAreaView,
   TouchableOpacity,
-  Image,
   Alert,
+  FlatList,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MainTabParamList, RootStackParamList, Appointment } from '../types';
-import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { spacing, borderRadius, shadows } from '../theme/spacing';
+import { spacing } from '../theme/spacing';
+import { cleanScheduler } from '../theme/cleanScheduler';
 import { BUSINESS_INFO } from '../constants/business';
 import { useApp } from '../context/AppContext';
 import { AppointmentService } from '../services/AppointmentService';
-import AppointmentCard from '../components/AppointmentCard';
+import { EmptyState } from '../components/EmptyState';
+import { CustomerAppointmentListItem } from '../components/CustomerAppointmentListItem';
 import { AppointmentDetailSheet } from '../components/AppointmentDetailSheet';
 import ReviewModal from '../components/ReviewModal';
 import { haptics } from '../utils/haptics';
@@ -32,30 +31,6 @@ interface Props {
   navigation: AppointmentsScreenNavigationProp;
   route: AppointmentsScreenRouteProp;
 }
-
-// Helper function to format appointment dates
-const formatAppointmentDate = (dateString: string): string => {
-  const today = new Date();
-  const appointmentDate = new Date(dateString);
-  
-  // Check if it's today
-  if (appointmentDate.toDateString() === today.toDateString()) {
-    return 'Today';
-  }
-  
-  // Check if it's tomorrow
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (appointmentDate.toDateString() === tomorrow.toDateString()) {
-    return 'Tomorrow';
-  }
-  
-  // Format as "Dec 28" or "Jan 13"
-  return appointmentDate.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric' 
-  });
-};
 
 const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
   const { state, cancelAppointment } = useApp();
@@ -264,7 +239,6 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleViewDetails = (appointment: any) => {
-    // Open the appointment details bottom sheet
     setDetailsAppointment(appointment);
     detailsSheetRef.current?.open();
   };
@@ -274,109 +248,110 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
     setDetailsAppointment(null);
   };
 
-  const renderAppointmentCard = (appointment: any, isUpcoming: boolean, isCanceled: boolean = false) => {
-    // Mock barber info for now
-    const barberInfo = { id: appointment.barberId, name: BUSINESS_INFO.name, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' };
+  const currentData =
+    activeTab === 'upcoming'
+      ? upcomingAppointments
+      : activeTab === 'past'
+        ? pastAppointments
+        : canceledAppointments;
 
+  const renderEmptyState = () => {
+    let title = 'No upcoming appointments';
+    let subtitle = 'When you book, your appointments will show up here.';
+    let icon: 'calendar-outline' | 'time-outline' | 'close-circle-outline' = 'calendar-outline';
+    let actionLabel: string | undefined;
+    let onAction: (() => void) | undefined;
+    if (activeTab === 'past') {
+      title = 'No past appointments';
+      subtitle = 'Past appointments will appear here.';
+      icon = 'time-outline';
+    } else if (activeTab === 'canceled') {
+      title = 'No canceled appointments';
+      subtitle = 'Canceled appointments will appear here.';
+      icon = 'close-circle-outline';
+    } else {
+      actionLabel = 'Book an appointment';
+      onAction = () => navigation.navigate('Book');
+    }
     return (
-      <AppointmentCard
-        key={appointment.id}
-        id={appointment.id}
-        barberName={barberInfo?.name || "Unknown Barber"}
-        service={appointment.serviceName || appointment.service}
-        date={formatAppointmentDate(appointment.appointmentDate || appointment.date)}
-        time={appointment.appointmentTime || appointment.time}
-        location="Downtown Plaza"
-        barberPhoto={barberInfo?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face"}
-        isUpcoming={isUpcoming}
-        rating={appointment.rating}
-        status={appointment.status}
-        serviceDuration={appointment.serviceDuration}
-        specialRequests={appointment.specialRequests}
-        appointmentDate={appointment.appointmentDate || appointment.date}
-        onPress={handleAppointmentPress}
-        onReschedule={() => handleReschedule(appointment)}
-        onCancel={() => handleCancel(appointment)}
-        onRebook={() => handleRebook(appointment)}
-        onViewDetails={() => handleViewDetails(appointment)}
-        onGetDirections={() => {
-          // Handle get directions
-          Alert.alert('Directions', 'Navigate to the venue');
-        }}
-        barberId={appointment.barberId}
-        barberRating={4.8}
-        barberReviewCount={0}
-      />
+      <View style={styles.emptyStateCard}>
+        <EmptyState
+          icon={icon}
+          title={title}
+          subtitle={subtitle}
+          actionLabel={actionLabel}
+          onAction={onAction}
+        />
+      </View>
     );
   };
 
+  const renderItem = useCallback(
+    ({ item }: { item: Appointment }) => (
+      <CustomerAppointmentListItem
+        appointment={item}
+        onPress={() => handleAppointmentPress(item.id)}
+      />
+    ),
+    [handleAppointmentPress]
+  );
+
+  const ListSeparator = () => <View style={styles.listSeparator} />;
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
-        
-        {/* Tab Selector */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
-            onPress={() => {
-              haptics.selection();
-              setActiveTab('upcoming');
-            }}
-          >
-            <Text style={[styles.tabText, activeTab === 'upcoming' && styles.activeTabText]}>
-              Upcoming ({upcomingAppointments.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'past' && styles.activeTab]}
-            onPress={() => {
-              haptics.selection();
-              setActiveTab('past');
-            }}
-          >
-            <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
-              Past ({pastAppointments.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'canceled' && styles.activeTab]}
-            onPress={() => {
-              haptics.selection();
-              setActiveTab('canceled');
-            }}
-          >
-            <Text style={[styles.tabText, activeTab === 'canceled' && styles.activeTabText]}>
-              Canceled ({canceledAppointments.length})
-            </Text>
-          </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.contentWrap}>
+        {/* Segmented control in card */}
+        <View style={styles.segmentCard}>
+          <View style={styles.segmentedControl}>
+            <TouchableOpacity
+              style={[styles.segment, activeTab === 'upcoming' && styles.segmentActive]}
+              onPress={() => {
+                haptics.selection();
+                setActiveTab('upcoming');
+              }}
+            >
+              <Text style={[styles.segmentText, activeTab === 'upcoming' && styles.segmentTextActive]}>
+                Upcoming ({upcomingAppointments.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segment, activeTab === 'past' && styles.segmentActive]}
+              onPress={() => {
+                haptics.selection();
+                setActiveTab('past');
+              }}
+            >
+              <Text style={[styles.segmentText, activeTab === 'past' && styles.segmentTextActive]}>
+                Past ({pastAppointments.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segment, activeTab === 'canceled' && styles.segmentActive]}
+              onPress={() => {
+                haptics.selection();
+                setActiveTab('canceled');
+              }}
+            >
+              <Text style={[styles.segmentText, activeTab === 'canceled' && styles.segmentTextActive]}>
+                Canceled ({canceledAppointments.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Appointments List */}
-        {activeTab === 'upcoming' ? (
-          upcomingAppointments.length > 0 ? (
-            upcomingAppointments.map(appointment => renderAppointmentCard(appointment, true))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No upcoming appointments</Text>
-            </View>
-          )
-        ) : activeTab === 'past' ? (
-          pastAppointments.length > 0 ? (
-            pastAppointments.map(appointment => renderAppointmentCard(appointment, false))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No past appointments</Text>
-            </View>
-          )
-        ) : (
-          canceledAppointments.length > 0 ? (
-            canceledAppointments.map(appointment => renderAppointmentCard(appointment, false, true))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No canceled appointments</Text>
-            </View>
-          )
-        )}
+        {/* Appointments list in card */}
+        <View style={styles.listCard}>
+          <FlatList
+            data={currentData}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            ItemSeparatorComponent={ListSeparator}
+            ListEmptyComponent={renderEmptyState}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
       </View>
 
       {/* Review Modal */}
@@ -420,195 +395,77 @@ const AppointmentsScreen: React.FC<Props> = ({ navigation, route }) => {
           handleCancel(apt);
         }}
       />
-    </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: cleanScheduler.background,
   },
-  content: {
-    padding: spacing.lg,
+  contentWrap: {
+    flex: 1,
+    paddingTop: cleanScheduler.sectionSpacing,
+    paddingHorizontal: cleanScheduler.padding,
+    paddingBottom: spacing.xl * 2,
   },
-  
-  // Tab Selector
-  tabContainer: {
+  segmentCard: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    padding: cleanScheduler.padding,
+    marginBottom: cleanScheduler.sectionSpacing,
+  },
+  segmentedControl: {
     flexDirection: 'row',
-    backgroundColor: 'colors.gray[100]',
-    borderRadius: 12,
+    backgroundColor: cleanScheduler.secondary.bg,
+    borderRadius: cleanScheduler.input.radius,
     padding: 4,
-    marginBottom: spacing.lg,
   },
-  tab: {
+  segment: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 8,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
+    borderRadius: cleanScheduler.input.radius,
   },
-  activeTab: {
-    backgroundColor: colors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+  segmentActive: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
   },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-    textAlign: 'center',
+  segmentText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: cleanScheduler.text.subtext,
   },
-  activeTabText: {
-    color: '#111827',
+  segmentTextActive: {
+    color: cleanScheduler.text.heading,
   },
-
-  // Appointment Cards
-  appointmentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 17,
-    marginBottom: 16,
-    shadowColor: '#0000000D',
-    shadowOpacity: 0.1,
-    shadowOffset: {
-      width: 0,
-      height: 1
-    },
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  appointmentTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginHorizontal: 17,
-    marginBottom: 12,
-  },
-  barberPhoto: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
-  },
-  appointmentInfo: {
+  listCard: {
     flex: 1,
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.card.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.card.border,
+    overflow: 'hidden',
+    minHeight: 200,
   },
-  barberName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 4,
+  listContent: {
+    paddingVertical: spacing.sm,
+    flexGrow: 1,
   },
-  serviceName: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    marginBottom: 4,
-  },
-  appointmentLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  appointmentLocationText: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginLeft: 4,
-  },
-  appointmentRight: {
-    alignItems: 'flex-end',
-  },
-  appointmentDate: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 2,
-  },
-  appointmentTime: {
-    fontSize: 14,
-    color: 'colors.gray[700]',
-  },
-  appointmentDivider: {
+  listSeparator: {
     height: 1,
-    backgroundColor: colors.border.light,
-    marginHorizontal: 17,
-    marginVertical: 12,
+    backgroundColor: cleanScheduler.card.border,
+    marginHorizontal: cleanScheduler.padding,
   },
-  appointmentBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyStateCard: {
+    padding: cleanScheduler.padding,
     alignItems: 'center',
-    marginHorizontal: 17,
-    marginTop: 8,
-    gap: 12,
-  },
-  
-  // Buttons
-  rescheduleButton: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-  },
-  rescheduleButtonText: {
-    fontSize: 14,
-    color: colors.accent.primary,
-    fontWeight: typography.fontWeight.medium,
-    textAlign: 'center',
-  },
-  cancelButton: {
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    color: colors.white,
-    fontWeight: typography.fontWeight.medium,
-  },
-  reviewButton: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-  },
-  reviewButtonText: {
-    fontSize: 14,
-    color: colors.accent.primary,
-    fontWeight: typography.fontWeight.medium,
-    textAlign: 'center',
-  },
-  rebookButton: {
-    borderRadius: borderRadius.button,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-    alignItems: 'center',
-  },
-  rebookButtonText: {
-    fontSize: 14,
-    color: colors.white,
-    fontWeight: typography.fontWeight.medium,
-  },
-
-  // Empty State
-  emptyState: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-    ...shadows.sm,
-  },
-  emptyStateText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
-    textAlign: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
   },
 });
 

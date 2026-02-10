@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
-import { spacing, borderRadius, shadows } from '../theme/spacing';
+import { cleanScheduler } from '../theme/cleanScheduler';
+import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { Appointment } from '../types';
-import { AppointmentTypeBadge } from './AppointmentTypeBadge';
 import { format, parse } from 'date-fns';
 
 interface BarberAppointmentListItemProps {
@@ -17,17 +16,12 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
   appointment,
   onPress,
 }) => {
-  // Guard against undefined appointment
-  if (!appointment) {
-    return null;
-  }
+  if (!appointment) return null;
 
-  // Get customer display name
   const customerName = appointment.appointmentType === 'walk_in'
     ? appointment.customerName || 'Walk-in Customer'
     : appointment.customer?.full_name || 'Unknown Customer';
 
-  // Get customer initials for avatar fallback
   const getInitials = (name: string): string => {
     const parts = name.split(' ');
     if (parts.length >= 2) {
@@ -36,7 +30,6 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
     return name.substring(0, 2).toUpperCase();
   };
 
-  // Format time to 12-hour format
   const formatTime = (time?: string): string => {
     if (!time) return '--:--';
     try {
@@ -50,7 +43,6 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
     }
   };
 
-  // Format date
   const formatDate = (date?: string): string => {
     if (!date) return '--';
     try {
@@ -61,33 +53,30 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
     }
   };
 
-  // Get status badge color
-  const getStatusColor = () => {
+  const isWalkIn = appointment.appointmentType === 'walk_in';
+  const badgeBg = isWalkIn ? cleanScheduler.status.warning : cleanScheduler.status.available;
+  const badgeLabel = isWalkIn ? 'W-I' : getInitials(customerName);
+
+  const getStatusDotColor = (): string => {
     switch (appointment.status) {
       case 'completed':
-        return colors.accent.success;
+        return cleanScheduler.status.available;
       case 'cancelled':
-        return colors.accent.error;
       case 'no_show':
-        return colors.accent.warning;
+        return cleanScheduler.status.unavailable;
       case 'scheduled':
       default:
-        return colors.accent.primary;
+        return cleanScheduler.status.available;
     }
   };
 
-  // Get status badge text
-  const getStatusText = () => {
+  const getStatusText = (): string => {
     switch (appointment.status) {
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      case 'no_show':
-        return 'No-show';
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      case 'no_show': return 'No-show';
       case 'scheduled':
-      default:
-        return 'Scheduled';
+      default: return 'Scheduled';
     }
   };
 
@@ -97,30 +86,14 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
       onPress={onPress}
       activeOpacity={0.7}
     >
-      {/* Left: Customer Avatar */}
-      <View style={styles.avatarContainer}>
-        {appointment.customer?.avatar_url && appointment.appointmentType !== 'walk_in' ? (
-          <Image
-            source={{ uri: appointment.customer.avatar_url }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.initials}>{getInitials(customerName)}</Text>
-          </View>
-        )}
+      <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+        <Text style={styles.badgeText}>{badgeLabel}</Text>
       </View>
 
-      {/* Center: Customer & Service Info */}
       <View style={styles.content}>
-        <View style={styles.nameRow}>
-          <Text style={styles.customerName} numberOfLines={1}>
-            {customerName}
-          </Text>
-          {appointment.appointmentType && (
-            <AppointmentTypeBadge type={appointment.appointmentType} size="small" />
-          )}
-        </View>
+        <Text style={styles.customerName} numberOfLines={1}>
+          {customerName}
+        </Text>
         <Text style={styles.serviceName} numberOfLines={1}>
           {appointment.serviceName || 'Unknown Service'}
         </Text>
@@ -129,7 +102,6 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
         </Text>
       </View>
 
-      {/* Right: Time & Status */}
       <View style={styles.rightSection}>
         {appointment.appointmentTime && (
           <Text style={styles.time}>{formatTime(appointment.appointmentTime)}</Text>
@@ -137,17 +109,15 @@ export const BarberAppointmentListItem: React.FC<BarberAppointmentListItemProps>
         {appointment.appointmentDate && (
           <Text style={styles.date}>{formatDate(appointment.appointmentDate)}</Text>
         )}
-        {appointment.status && (
-          <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor()}15` }]}>
-            <Text style={[styles.statusText, { color: getStatusColor() }]}>
-              {getStatusText()}
-            </Text>
-          </View>
-        )}
+        <View style={styles.statusRow}>
+          <View style={[styles.statusDot, { backgroundColor: getStatusDotColor() }]} />
+          <Text style={[styles.statusLabel, { color: getStatusDotColor() }]}>
+            {getStatusText()}
+          </Text>
+        </View>
       </View>
 
-      {/* Chevron */}
-      <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+      <Ionicons name="chevron-forward" size={20} color={cleanScheduler.text.subtext} />
     </TouchableOpacity>
   );
 };
@@ -156,81 +126,68 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    ...shadows.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: cleanScheduler.padding,
   },
-  avatarContainer: {
+  badge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: spacing.md,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.accent.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initials: {
-    fontSize: typography.fontSize.base,
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
-    color: colors.accent.primary,
   },
   content: {
     flex: 1,
     marginRight: spacing.sm,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xs,
-  },
   customerName: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    flex: 1,
+    color: cleanScheduler.text.heading,
+    marginBottom: 2,
   },
   serviceName: {
     fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.body,
     marginBottom: 2,
   },
   meta: {
-    fontSize: typography.fontSize.xs,
-    color: colors.text.tertiary,
+    fontSize: typography.fontSize.sm,
+    color: cleanScheduler.text.subtext,
   },
   rightSection: {
     alignItems: 'flex-end',
     marginRight: spacing.sm,
-    minWidth: 80,
+    minWidth: 72,
   },
   time: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
+    color: cleanScheduler.text.heading,
     marginBottom: 2,
   },
   date: {
     fontSize: typography.fontSize.xs,
-    color: colors.text.secondary,
+    color: cleanScheduler.text.subtext,
     marginBottom: spacing.xs,
   },
-  statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-  statusText: {
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusLabel: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.semibold,
   },

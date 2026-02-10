@@ -75,12 +75,12 @@ export class AvailabilityService {
    * Get barber's schedule exceptions for a date range
    */
   static async getScheduleExceptions(
-    barberId: string, 
-    startDate: string, 
+    barberId: string,
+    startDate: string,
     endDate: string
   ): Promise<ScheduleException[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('schedule_exceptions')
         .select('*')
         .eq('barber_id', barberId)
@@ -93,6 +93,116 @@ export class AvailabilityService {
     } catch (error) {
       console.error('Error fetching schedule exceptions:', error);
       return [];
+    }
+  }
+
+  /**
+   * Create a new schedule exception
+   */
+  static async createScheduleException(
+    barberId: string,
+    date: string,
+    isAvailable: boolean,
+    startTime?: string,
+    endTime?: string,
+    reason?: string
+  ): Promise<ScheduleException> {
+    try {
+      const { data, error } = await supabase
+        .from('schedule_exceptions')
+        .insert({
+          barber_id: barberId,
+          date: date,
+          is_available: isAvailable,
+          start_time: startTime,
+          end_time: endTime,
+          reason: reason,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Map database fields to interface
+      return {
+        id: data.id,
+        barberId: data.barber_id,
+        date: data.date,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        isAvailable: data.is_available,
+        reason: data.reason,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    } catch (error) {
+      console.error('Error creating schedule exception:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing schedule exception
+   */
+  static async updateScheduleException(
+    exceptionId: string,
+    updates: {
+      date?: string;
+      isAvailable?: boolean;
+      startTime?: string;
+      endTime?: string;
+      reason?: string;
+    }
+  ): Promise<ScheduleException> {
+    try {
+      const updateData: any = {};
+      if (updates.date !== undefined) updateData.date = updates.date;
+      if (updates.isAvailable !== undefined) updateData.is_available = updates.isAvailable;
+      if (updates.startTime !== undefined) updateData.start_time = updates.startTime;
+      if (updates.endTime !== undefined) updateData.end_time = updates.endTime;
+      if (updates.reason !== undefined) updateData.reason = updates.reason;
+
+      const { data, error } = await supabase
+        .from('schedule_exceptions')
+        .update(updateData)
+        .eq('id', exceptionId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Map database fields to interface
+      return {
+        id: data.id,
+        barberId: data.barber_id,
+        date: data.date,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        isAvailable: data.is_available,
+        reason: data.reason,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    } catch (error) {
+      console.error('Error updating schedule exception:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a schedule exception
+   */
+  static async deleteScheduleException(exceptionId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('schedule_exceptions')
+        .delete()
+        .eq('id', exceptionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting schedule exception:', error);
+      throw error;
     }
   }
 
@@ -321,6 +431,87 @@ export class AvailabilityService {
       return true;
     } catch (error) {
       console.error('Error upserting barber availability:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Copy a week's schedule (exceptions) to target weeks
+   */
+  static async copyWeekSchedule(
+    barberId: string,
+    sourceWeekStart: string,
+    targetWeekStarts: string[],
+    includeExceptions: boolean
+  ): Promise<boolean> {
+    try {
+      // Note: barber_availability is day-of-week based, so it already applies to all weeks
+      // We only need to copy schedule_exceptions if requested
+
+      if (!includeExceptions || targetWeekStarts.length === 0) {
+        return true;
+      }
+
+      // Get source week end date
+      const sourceDate = new Date(sourceWeekStart);
+      const sourceEndDate = new Date(sourceDate);
+      sourceEndDate.setDate(sourceEndDate.getDate() + 6);
+      const sourceWeekEnd = this.getLocalDateString(sourceEndDate);
+
+      // Get all exceptions from source week
+      const sourceExceptions = await this.getScheduleExceptions(
+        barberId,
+        sourceWeekStart,
+        sourceWeekEnd
+      );
+
+      if (sourceExceptions.length === 0) {
+        return true;
+      }
+
+      // For each target week, copy exceptions with adjusted dates
+      for (const targetWeekStart of targetWeekStarts) {
+        const sourceStartDate = new Date(sourceWeekStart);
+        const targetStartDate = new Date(targetWeekStart);
+
+        // Calculate day offset between source and target week
+        const dayOffset = Math.floor(
+          (targetStartDate.getTime() - sourceStartDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        // Copy each exception to the target week with adjusted date
+        for (const exception of sourceExceptions) {
+          const exceptionDate = new Date(exception.date);
+          exceptionDate.setDate(exceptionDate.getDate() + dayOffset);
+          const newDate = this.getLocalDateString(exceptionDate);
+
+          // Check if exception already exists for this date
+          const existingExceptions = await this.getScheduleExceptions(
+            barberId,
+            newDate,
+            newDate
+          );
+
+          if (existingExceptions.length === 0) {
+            // Create new exception with adjusted date
+            await this.createScheduleException(
+              barberId,
+              newDate,
+              exception.isAvailable,
+              exception.startTime,
+              exception.endTime,
+              exception.reason
+            );
+          }
+        }
+      }
+
+      // Clear cache after copying
+      this.clearCache();
+
+      return true;
+    } catch (error) {
+      console.error('Error copying week schedule:', error);
       return false;
     }
   }

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { typography } from '../theme/typography';
+import { cleanScheduler } from '../theme/cleanScheduler';
 
 interface SearchBarProps {
   placeholder?: string;
@@ -12,6 +13,7 @@ interface SearchBarProps {
   debounceMs?: number;
   onFilterPress?: () => void;
   filterCount?: number;
+  variant?: 'default' | 'cleanScheduler';
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({
@@ -21,7 +23,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   debounceMs = 300,
   onFilterPress,
   filterCount = 0,
+  variant = 'default',
 }) => {
+  const isClean = variant === 'cleanScheduler';
   const [localValue, setLocalValue] = useState(value);
 
   // Debounce the search
@@ -44,28 +48,28 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isClean && styles.containerClean]}>
       <Ionicons
         name="search"
         size={20}
-        color={colors.text.secondary}
+        color={isClean ? cleanScheduler.text.subtext : colors.text.secondary}
         style={styles.searchIcon}
       />
       <TextInput
-        style={styles.input}
+        style={[styles.input, isClean && styles.inputClean]}
         placeholder={placeholder}
-        placeholderTextColor={colors.text.tertiary}
+        placeholderTextColor={isClean ? cleanScheduler.text.subtext : colors.text.tertiary}
         value={localValue}
         onChangeText={setLocalValue}
         autoCapitalize="none"
         autoCorrect={false}
-        clearButtonMode="never" // We'll use custom clear button
+        clearButtonMode="never"
       />
       {onFilterPress && (
         <TouchableOpacity onPress={onFilterPress} style={styles.filterButton}>
-          <Ionicons name="funnel-outline" size={20} color={colors.text.primary} />
+          <Ionicons name="funnel-outline" size={20} color={isClean ? cleanScheduler.text.heading : colors.text.primary} />
           {filterCount > 0 && (
-            <View style={styles.filterBadge}>
+            <View style={[styles.filterBadge, isClean && styles.filterBadgeClean]}>
               <Text style={styles.filterBadgeText}>{filterCount}</Text>
             </View>
           )}
@@ -73,7 +77,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       )}
       {localValue.length > 0 && (
         <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-          <Ionicons name="close-circle" size={20} color={colors.text.secondary} />
+          <Ionicons name="close-circle" size={20} color={isClean ? cleanScheduler.text.subtext : colors.text.secondary} />
         </TouchableOpacity>
       )}
     </View>
@@ -91,6 +95,15 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginVertical: spacing.md,
   },
+  containerClean: {
+    backgroundColor: cleanScheduler.card.bg,
+    borderRadius: cleanScheduler.input.radius,
+    borderWidth: 1,
+    borderColor: cleanScheduler.input.border,
+    paddingHorizontal: cleanScheduler.padding,
+    marginHorizontal: 0,
+    marginVertical: 0,
+  },
   searchIcon: {
     marginRight: spacing.sm,
   },
@@ -98,7 +111,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.fontSize.base,
     color: colors.text.primary,
-    paddingVertical: 0, // Remove default padding
+    paddingVertical: 0,
+  },
+  inputClean: {
+    color: cleanScheduler.text.heading,
   },
   filterButton: {
     marginLeft: spacing.sm,
@@ -109,7 +125,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: colors.accent.primary,
+    backgroundColor: cleanScheduler.primary,
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -117,6 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
+  filterBadgeClean: {},
   filterBadgeText: {
     fontSize: 10,
     fontWeight: typography.fontWeight.bold,

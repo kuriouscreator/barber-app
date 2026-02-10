@@ -10,6 +10,17 @@ export interface UserProfile {
   notify_push?: boolean;
   notify_email?: boolean;
   notify_sms?: boolean;
+  // Onboarding fields
+  onboarding_completed?: boolean;
+  onboarding_step?: number;
+  onboarding_completed_at?: string;
+  // Shop/business fields (for barbers)
+  shop_name?: string;
+  shop_address?: string;
+  shop_city?: string;
+  shop_state?: string;
+  shop_zip?: string;
+  shop_phone?: string;
   created_at: string;
   updated_at: string;
 }

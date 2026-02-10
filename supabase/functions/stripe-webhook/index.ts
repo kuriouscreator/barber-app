@@ -251,10 +251,16 @@ async function handleSubscriptionChange(supabaseClient: any, subscription: Strip
       await processReferralCompletion(supabaseClient, userId)
     }
 
-    // Award upgrade bonus for plan changes
+    // Award upgrade bonus and barber notifications for plan changes
     if (isPlanChange && existingSub) {
-      console.log('Plan change detected, checking if it\'s an upgrade')
-      await handlePlanUpgrade(supabaseClient, userId, existingSub.plan_name, planName, cutsIncluded, existingSub.cuts_included, subscription.id)
+      const oldCutsIncluded = existingSub.cuts_included || 0
+      if (cutsIncluded > oldCutsIncluded) {
+        console.log('Plan change detected, checking if it\'s an upgrade')
+        await handlePlanUpgrade(supabaseClient, userId, existingSub.plan_name, planName, cutsIncluded, oldCutsIncluded, subscription.id)
+        await insertBarberNotificationForSubscriptionChange(supabaseClient, userId, 'subscription.upgraded', existingSub.plan_name, planName, subscription.id)
+      } else if (cutsIncluded < oldCutsIncluded) {
+        await insertBarberNotificationForSubscriptionChange(supabaseClient, userId, 'subscription.downgraded', existingSub.plan_name, planName, subscription.id)
+      }
     }
 
     // Award monthly loyalty bonus on period renewal
@@ -862,5 +868,56 @@ async function logActivityToDatabase(
     console.log(`✅ Activity logged: ${activityType} for user ${userId}`)
   } catch (error) {
     console.error('Error logging activity:', error)
+  }
+}
+
+async function insertBarberNotificationForSubscriptionChange(
+  supabaseClient: any,
+  userId: string,
+  type: 'subscription.upgraded' | 'subscription.downgraded',
+  oldPlanName: string,
+  newPlanName: string,
+  subscriptionId: string
+) {
+  try {
+    const { data: barber } = await supabaseClient
+      .from('profiles')
+      .select('id')
+      .eq('role', 'barber')
+      .limit(1)
+      .single()
+
+    if (!barber?.id) {
+      console.log('No barber profile found, skipping barber notification')
+      return
+    }
+
+    const { data: customer } = await supabaseClient
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId)
+      .single()
+
+    const customerName = customer?.full_name || 'Customer'
+    const title = type === 'subscription.upgraded' ? 'Subscription upgraded' : 'Subscription downgraded'
+    const body = `${customerName} moved to ${newPlanName}`
+
+    const { error } = await supabaseClient.from('barber_notifications').insert({
+      barber_id: barber.id,
+      type,
+      title,
+      body,
+      entity_type: 'subscription',
+      entity_id: subscriptionId,
+      metadata: { customerName, oldPlan: oldPlanName, newPlan: newPlanName },
+    })
+
+    if (error) {
+      console.error('Error inserting barber notification:', error)
+      return
+    }
+    console.log(`✅ Barber notification: ${type}`)
+  } catch (error) {
+    console.error('Error in insertBarberNotificationForSubscriptionChange:', error)
   }
 }

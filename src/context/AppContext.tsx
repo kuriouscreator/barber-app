@@ -191,6 +191,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
             location: 'San Francisco, CA', // Default location
             credits: 0, // Credits are now managed by subscription system
+            // Onboarding fields
+            onboardingCompleted: profile?.onboarding_completed || false,
+            onboardingStep: profile?.onboarding_step || 0,
+            onboardingCompletedAt: profile?.onboarding_completed_at,
+            // Shop/business fields (for barbers)
+            shopName: profile?.shop_name,
+            shopAddress: profile?.shop_address,
+            shopCity: profile?.shop_city,
+            shopState: profile?.shop_state,
+            shopZip: profile?.shop_zip,
+            shopPhone: profile?.shop_phone,
           };
           dispatch({ type: 'SET_USER', payload: user });
           
@@ -517,6 +528,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         memberSince: new Date(authUser.created_at).toISOString().split('T')[0],
         location: 'San Francisco, CA',
         credits: 0,
+        // Onboarding fields
+        onboardingCompleted: profile?.onboarding_completed || false,
+        onboardingStep: profile?.onboarding_step || 0,
+        onboardingCompletedAt: profile?.onboarding_completed_at,
+        // Shop/business fields (for barbers)
+        shopName: profile?.shop_name,
+        shopAddress: profile?.shop_address,
+        shopCity: profile?.shop_city,
+        shopState: profile?.shop_state,
+        shopZip: profile?.shop_zip,
+        shopPhone: profile?.shop_phone,
       };
       dispatch({ type: 'SET_USER', payload: user });
     } catch (error) {

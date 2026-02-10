@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -69,8 +69,35 @@ const ExceptionsSection: React.FC<ExceptionsSectionProps> = ({
       dateLabel={item.dateLabel}
       description={item.description}
       onMore={() => {
-        // TODO: Show context menu with Edit/Delete options
-        console.log('More options for:', item.id);
+        Alert.alert(
+          item.title,
+          'Choose an action',
+          [
+            {
+              text: 'Edit',
+              onPress: () => onEditException(item.id),
+            },
+            {
+              text: 'Delete',
+              onPress: () => {
+                Alert.alert(
+                  'Delete Exception',
+                  'Are you sure you want to delete this exception?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => onDeleteException(item.id),
+                    },
+                  ]
+                );
+              },
+              style: 'destructive',
+            },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
       }}
     />
   );

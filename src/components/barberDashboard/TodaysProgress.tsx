@@ -4,57 +4,43 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing, borderRadius, shadows } from '../../theme/spacing';
-import { DayProgress, MonthlyProgress } from '../../types';
+import { DayProgress } from '../../types';
 
 interface TodaysProgressProps {
-  completed: DayProgress;
-  remaining: DayProgress;
-  monthly: MonthlyProgress;
+  dayProgress: DayProgress;
 }
 
-const TodaysProgress: React.FC<TodaysProgressProps> = ({ completed, remaining, monthly }) => {
+const TodaysProgress: React.FC<TodaysProgressProps> = ({ dayProgress }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Today's Progress</Text>
-      
+
       <View style={styles.progressCards}>
+        {/* Completed Card */}
         <View style={styles.progressCard}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="checkmark-circle" size={24} color={colors.accent.primary} />
+          <View style={[styles.iconContainer, { backgroundColor: `${colors.accent.success}15` }]}>
+            <Ionicons name="checkmark-circle" size={24} color={colors.accent.success} />
           </View>
-          <Text style={styles.progressNumber}>{completed.completedCount}</Text>
-          <Text style={styles.progressLabel}>Completed {completed.completedCount} cuts logged</Text>
+          <Text style={styles.progressNumber}>{dayProgress.completedCount}</Text>
+          <Text style={styles.progressLabel}>Completed</Text>
         </View>
-        
+
+        {/* Remaining Card */}
         <View style={styles.progressCard}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="time" size={24} color={colors.text.secondary} />
+          <View style={[styles.iconContainer, { backgroundColor: `${colors.accent.primary}15` }]}>
+            <Ionicons name="time-outline" size={24} color={colors.accent.primary} />
           </View>
-          <Text style={styles.progressNumber}>{remaining.remainingCount}</Text>
-          <Text style={styles.progressLabel}>Remaining {remaining.remainingCount} more today</Text>
+          <Text style={styles.progressNumber}>{dayProgress.remainingCount}</Text>
+          <Text style={styles.progressLabel}>Remaining</Text>
         </View>
-      </View>
-      
-      <View style={styles.monthlyCard}>
-        <View style={styles.monthlyHeader}>
-          <Text style={styles.monthlyTitle}>Monthly Cuts Progress</Text>
-          <Text style={styles.monthlyPercent}>{monthly.percent}%</Text>
-        </View>
-        
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressBarFill, 
-                { width: `${monthly.percent}%` }
-              ]} 
-            />
+
+        {/* Canceled Card */}
+        <View style={styles.progressCard}>
+          <View style={[styles.iconContainer, { backgroundColor: `${colors.accent.error}15` }]}>
+            <Ionicons name="close-circle-outline" size={24} color={colors.accent.error} />
           </View>
-        </View>
-        
-        <View style={styles.monthlyFooter}>
-          <Text style={styles.monthlyDoneLabel}>{monthly.doneLabel}</Text>
-          <Text style={styles.monthlyRemainingLabel}>{monthly.remainingLabel}</Text>
+          <Text style={styles.progressNumber}>{dayProgress.canceledCount}</Text>
+          <Text style={styles.progressLabel}>Canceled</Text>
         </View>
       </View>
     </View>
@@ -75,7 +61,6 @@ const styles = StyleSheet.create({
   progressCards: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.md,
   },
   progressCard: {
     flex: 1,
@@ -89,7 +74,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.sm,
@@ -104,54 +88,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
     textAlign: 'center',
-  },
-  monthlyCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    ...shadows.sm,
-  },
-  monthlyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  monthlyTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  monthlyPercent: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  progressBarContainer: {
-    marginBottom: spacing.sm,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.accent.primary,
-    borderRadius: borderRadius.full,
-  },
-  monthlyFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  monthlyDoneLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-  },
-  monthlyRemainingLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
   },
 });
 
